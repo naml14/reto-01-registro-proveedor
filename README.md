@@ -158,14 +158,35 @@ El repo tiene la **raíz = la carpeta `reto-01`** (ahí están `Dockerfile`, `pa
 
 #### Paso 1 · New Resource
 
-En Coolify v4: **Projects → New Resource → Public Repository** (columna "Git Based").
+En Coolify v4: **Projects → New Resource → Public Repository** (columna "Git Based") → pega la
+URL del repo → en **Build Pack** elige:
+
+| Build Pack | Cuando usarlo |
+|---|---|
+| **Docker Compose** | **Recomendado**: usa el `docker-compose.yml` del repo, que declara los labels de Traefik a mano (`Host(...)`, `tls`, `certresolver=letsencrypt`) y se cuelga de la red `coolify` externa. Es el mismo patrón que tu mailserver, que es el que ya funciona en esa instancia. |
+| Dockerfile | Si prefieres que Coolify construya la imagen con el `Dockerfile` del repo. Funciona, pero los labels los autogenera Coolify y pueden dejar el router sin backend (503). |
+| Nixpacks | No: detectaría Bun por su cuenta y perderías la imagen fijada (`oven/bun:1.4.3-alpine`) y el `HEALTHCHECK`. |
 
 | Campo | Valor |
 |---|---|
 | Repository URL | `https://github.com/naml14/reto-01-registro-proveedor` |
 | Branch | `main` |
+| Base Directory | `/` |
+| Port | `3000` |
 
 Pulsa **Check repository** y luego **Continue**.
+
+> **Detén o elimina la app anterior antes de desplegar esta**: ambas publicarían el puerto 3000
+> en el host y la segunda no arrancaría por conflicto de puerto.
+
+Environment Variables del recurso (obligatorias):
+
+| Variable | Valor |
+|---|---|
+| `DOMINIO` | `agente.electrondevnaml.dev` (o el hostname que hayas creado en Cloudflare) |
+| `MINIMAX_API_KEY` | *(tu Subscription Key del plan M)* |
+| `LLM_PROVIDER` | `minimax` |
+| `LLM_MODEL_MINIMAX` | `MiniMax-M3.1-Flash` |
 
 #### Paso 2 · Configuration
 
@@ -227,7 +248,7 @@ bun run scripts/smoke-test.ts https://agente.tudominio.com
 | El contenedor arranca y cae | Falta `PORT` o el puerto no coincide | `PORT=3000` en Environment Variables y `Port = 3000` en Configuration |
 | Responde 502 | La app escucha en `127.0.0.1` | Debe usar `HOST=0.0.0.0` (ya esta en el Dockerfile) |
 | `401` del proveedor | Credencial mal pegada | `bun run scripts/probar-proveedor.ts` en el VPS |
-| **503 "no available server"** | Traefik conoce el hostname pero no tiene backend: los labels autogenerados por Coolify no se aplicaron | Despliega como **Docker Compose Empty** con los labels de Traefik explicitos (opcion A del paso 1), o **Redeploy** + reinicio del proxy |
+| **503 "no available server"** | Traefik conoce el hostname pero no tiene backend: los labels autogenerados por Coolify no se aplicaron | Despliega con **Build Pack = Docker Compose** (opcion A del paso 1, labels de Traefik explicitos), o **Redeploy** + reinicio del proxy |
 | **404 en el puerto 80** | El router solo existe en el entrypoint HTTPS | Normal: usa siempre `https://` |
 | **NXDOMAIN** al resolver el dominio | Falta el registro A | Cloudflare: A `zl17t2tqyifz1ylorbog3vld9` -> IP del VPS, en **DNS only** (nube gris) |
 

@@ -43,7 +43,7 @@ services:
     # Patron de Traefik identico al del mailserver que ya te funciona.
     labels:
       - traefik.enable=true
-      - traefik.http.routers.reto01.rule=Host(`${DOMINIO:-zl17t2tqyifz1ylorbog3vld9.electrondevnaml.dev}`)
+      - traefik.http.routers.reto01.rule=Host(`${DOMINIO:-agente.electrondevnaml.dev}`)
       - traefik.http.routers.reto01.tls=true
       - traefik.http.routers.reto01.tls.certresolver=letsencrypt
       - traefik.http.services.reto01.loadbalancer.server.port=3000
