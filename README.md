@@ -120,10 +120,12 @@ bunx tsc --noEmit   # typecheck estricto, sin `any`
 bun run smoke http://localhost:3000   # verificacion de extremo a extremo contra una instancia viva
 ```
 
-`scripts/smoke-test.ts` comprueba 7 cosas contra una URL: salud del backend, front de chat,
-estáticos, ciclo del agente (leer → mapear → generar → armar), confirmación humana con envío
-simulado y consulta del historial de sesión. Sale con código 0 si todo pasa. Es el mismo guion que
-va a usar la defensa, así que **si el smoke test pasa, la URL sirve**.
+`scripts/smoke-test.ts` comprueba contra una URL: salud del backend, front de chat, estáticos, ciclo del
+agente, confirmación humana y consulta del historial de sesión. Sale con código 0 si todo pasa.
+
+Es **consciente del modo**: en modo determinista exige la secuencia exacta de herramientas; en modo
+LLM no exige secuencia (la decide el modelo) pero sí que no haya error del proveedor — que es
+justo el fallo que verías si la credencial está mal.
 
 ## 5. Enlace para probar
 

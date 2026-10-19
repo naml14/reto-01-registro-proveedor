@@ -99,7 +99,7 @@ export class AdaptadorAnthropic implements AdaptadorLLM {
 
     if (!respuesta.ok) {
       const detalle = (await respuesta.text()).slice(0, 300);
-      throw new Error(`El proveedor anthropic respondio ${respuesta.status}: ${detalle}`);
+      throw new Error(`El proveedor ${this.id} respondio ${respuesta.status}: ${detalle}`);
     }
 
     const datos = (await respuesta.json()) as { content?: BloqueAnthropic[] };

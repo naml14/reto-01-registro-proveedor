@@ -386,6 +386,11 @@ No es una declaración de intenciones: son los comandos ejecutados y su resultad
 | Petición a MiniMax sin tocarla | `bun test` (minimax) | endpoint `/anthropic/v1/messages`, `Authorization: Bearer`, `x-api-key`, cuerpo con `model`, `system` y `tools[].input_schema` |
 | Selección de proveedor | `bun test` (minimax) | `minimax` con `MINIMAX_API_KEY`; prioridad en `auto`; `guiado` sin credencial |
 | La credencial no se imprime | `scripts/probar-proveedor.ts` | el script reporta longitud y resultado, nunca el valor |
+| La credencial no queda en la imagen | `docker history` sobre la imagen construida | ninguna capa contiene la clave: se inyecta en runtime |
+| Contenedor en ejecucion | `docker run` + `docker ps` | estado **healthy**, `/api/health` responde con `provider=minimax` |
+| `docker compose` | `docker compose config` + `up -d` | servicio levanta con la credencial desde `.env` (chmod 600) |
+| Repositorio publicado | clon desde GitHub + `bun install --frozen-lockfile` + `demo.ts` + `bun test` | 0 fallos, 29/29, servidor arriba y smoke 7/7 |
+| Smoke test consciente del modo | `scripts/smoke-test.ts` | modo determinista: 7/7; modo LLM con credencial invalida: falla informando el `401` del proveedor |
 | Puerta de confirmación en el chat | guion del §11 del PRD | procesar → 4 tool calls + `needsConfirmation`; "envíalo" → `ENVIO-SIMULADO.md`; sin confirmación previa → vuelve a preguntar |
 
 **Lo que no está verificado** (y por qué no importa para la defensa):
@@ -393,5 +398,5 @@ No es una declaración de intenciones: son los comandos ejecutados y su resultad
 | Hueco | Por qué | Mitigación |
 |---|---|---|
 | Llamada real a la API del proveedor | No hay ninguna credencial en el entorno | El formato del historial y la peticion completa a MiniMax —endpoint, cabeceras, cuerpo, tool calling— estan cubiertos por pruebas puras; la llamada HTTP es un `fetch` con manejo de error explicito (CA5). `bun run scripts/probar-proveedor.ts` valida la credencial en el VPS sin imprimirla. El modo determinista cubre la demostracion sin depender de la red. |
-| Construccion de la imagen Docker | En la maquina de desarrollo no hay un daemon de Docker utilizable | **No hace falta Docker en local**: Coolify construye la imagen en el VPS a partir del `Dockerfile` versionado. La imagen es minima (`oven/bun:1.4.3-alpine`, `bun install --frozen-lockfile`, `HEALTHCHECK` incluido) y el `smoke-test.ts` verifica la instancia ya desplegada. |
-| Deploy en el VPS | Es una operacion del usuario | El README trae el paso a paso de Coolify v4 (Build Pack Dockerfile, puerto 3000, Environment Variables, Domains) y `bun run scripts/smoke-test.ts https://tu-dominio` da el veredicto en 30 segundos, con el mismo guion que usara la defensa. |
+| Construccion de la imagen Docker | Verificado en local | `docker build` completo en 14 s; `docker run` arranca **healthy** (el `HEALTHCHECK` del `Dockerfile` en verde); `docker compose config` valida y `docker compose up -d` levanta el servicio con la credencial inyectada por `env_file`. `docker history` confirma que **la clave no queda horneada** en la imagen: se inyecta en runtime. |
+| Deploy en el VPS | Es una operacion del usuario | El README trae el paso a paso de Coolify v4 (Build Pack Dockerfile, puerto 3000, Environment Variables, Domains) y `bun run scripts/smoke-test.ts https://tu-dominio` da el veredicto en 30 segundos. El test es consciente del modo: en modo LLM detecta el error del proveedor (por ejemplo, credencial invalida) en vez de dar un falso negativo. |
