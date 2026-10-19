@@ -227,6 +227,9 @@ bun run scripts/smoke-test.ts https://agente.tudominio.com
 | El contenedor arranca y cae | Falta `PORT` o el puerto no coincide | `PORT=3000` en Environment Variables y `Port = 3000` en Configuration |
 | Responde 502 | La app escucha en `127.0.0.1` | Debe usar `HOST=0.0.0.0` (ya esta en el Dockerfile) |
 | `401` del proveedor | Credencial mal pegada | `bun run scripts/probar-proveedor.ts` en el VPS |
+| **503 "no available server"** | Traefik conoce el hostname pero no tiene backend: los labels autogenerados por Coolify no se aplicaron | Despliega como **Docker Compose Empty** con los labels de Traefik explicitos (opcion A del paso 1), o **Redeploy** + reinicio del proxy |
+| **404 en el puerto 80** | El router solo existe en el entrypoint HTTPS | Normal: usa siempre `https://` |
+| **NXDOMAIN** al resolver el dominio | Falta el registro A | Cloudflare: A `zl17t2tqyifz1ylorbog3vld9` -> IP del VPS, en **DNS only** (nube gris) |
 
 ### 4.2 Alternativas
 
