@@ -24,6 +24,35 @@ const HISTORIAL: Mensaje[] = [
 ];
 
 describe("adaptador Anthropic", () => {
+  test("empareja el resultado con el id local cuando el bloque crudo no trae id", () => {
+    const thinking = { type: "thinking", thinking: "Consultar solicitud", signature: "firma-original" };
+    const herramienta = { type: "tool_use", name: "proveedor_leer_solicitud", input: { caso: "ec-corp-andina" } };
+    const id = idDeLlamada({ nombre: herramienta.name, argumentos: herramienta.input }, 0, 0);
+    const salida = aMensajesAnthropic([
+      { rol: "assistant", contenido: "", llamadas: [{ id, nombre: herramienta.name, argumentos: herramienta.input }], bloquesCrudos: [thinking, herramienta] },
+      { rol: "tool", contenido: '{"ok":true}', nombre: herramienta.name, id },
+    ]);
+    expect(salida).toEqual([
+      { role: "assistant", content: [thinking, { ...herramienta, id }] },
+      { role: "user", content: [{ type: "tool_result", tool_use_id: id, content: '{"ok":true}' }] },
+    ]);
+    expect(herramienta).not.toHaveProperty("id");
+  });
+
+  test("conserva el id del proveedor y los bloques de razonamiento sin cambios", () => {
+    const bloques = [
+      { type: "thinking", thinking: "Consultar", signature: "firma-original" },
+      { type: "tool_use", id: "toolu_real", name: "proveedor_leer_solicitud", input: {} },
+    ];
+    expect(aMensajesAnthropic([
+      { rol: "assistant", contenido: "", llamadas: [{ id: "toolu_real", nombre: "proveedor_leer_solicitud", argumentos: {} }], bloquesCrudos: bloques },
+      { rol: "tool", contenido: '{"ok":true}', nombre: "proveedor_leer_solicitud", id: "toolu_real" },
+    ])).toEqual([
+      { role: "assistant", content: bloques },
+      { role: "user", content: [{ type: "tool_result", tool_use_id: "toolu_real", content: '{"ok":true}' }] },
+    ]);
+  });
+
   test("el id del proveedor se respeta en el emparejado de la herramienta", () => {
     // Si el id se regenera, el proveedor responde "tool result's tool id
     // (...) not found" y el ciclo se rompe en la segunda iteracion.

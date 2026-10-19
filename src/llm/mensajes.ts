@@ -18,10 +18,19 @@ export function aMensajesAnthropic(mensajes: Mensaje[]): unknown[] {
     }
 
     if (mensaje.rol === "assistant") {
-      // Si el proveedor devolvio bloques crudos (texto, tool_use, thinking), se
-      // reenvian tal cual: es lo que exigen los modelos con razonamiento.
+      // Se conservan los bloques thinking y sus firmas. Si un tool_use no
+      // trae id, debe recibir el mismo respaldo local que su tool_result.
       if (mensaje.bloquesCrudos !== undefined && mensaje.bloquesCrudos.length > 0) {
-        salida.push({ role: "assistant", content: mensaje.bloquesCrudos });
+        let indiceLlamada = 0;
+        const bloques = mensaje.bloquesCrudos.map((bloque) => {
+          if (bloque === null || typeof bloque !== "object" || !("type" in bloque) || bloque.type !== "tool_use") {
+            return bloque;
+          }
+          const llamada = mensaje.llamadas?.[indiceLlamada++];
+          if ("id" in bloque && typeof bloque.id === "string" && bloque.id !== "") return bloque;
+          return llamada === undefined ? bloque : { ...bloque, id: llamada.id };
+        });
+        salida.push({ role: "assistant", content: bloques });
         continue;
       }
       const contenido: unknown[] = [];
