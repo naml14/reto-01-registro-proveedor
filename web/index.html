@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Agente Registro como Proveedor · Periferia IT Group</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="barra">
+      <div class="marca">
+        <span class="logo">P</span>
+        <div>
+          <h1>Agente Registro como Proveedor</h1>
+          <p>Periferia IT Group · Reto 01</p>
+        </div>
+      </div>
+      <div class="estado" id="estado">conectando…</div>
+    </header>
+
+    <main>
+      <section class="chat" id="chat" aria-live="polite">
+        <article class="mensaje bot">
+          <p>
+            Hola, soy el agente de registro como proveedor. Escribe
+            <code>Procesa el caso "ec-corp-andina"</code> y preparo el formulario y el paquete
+            listo para la firma. No envio nada sin tu confirmacion.
+          </p>
+        </article>
+      </section>
+
+      <aside class="panel">
+        <h2>Llamadas a herramientas</h2>
+        <ul id="toolcalls">
+          <li class="vacio">Todavia no hay llamadas.</li>
+        </ul>
+      </aside>
+    </main>
+
+    <form class="barra-entrada" id="form">
+      <div class="confirmacion oculto" id="confirmacion">
+        <strong>El agente pide confirmacion.</strong>
+        <span id="confirmacion-texto"></span>
+      </div>
+      <div class="fila">
+        <input
+          id="entrada"
+          placeholder='Ej.: Procesa el caso "ec-corp-andina"'
+          autocomplete="off"
+          autofocus
+        />
+        <button type="submit" id="enviar">Enviar</button>
+      </div>
+    </form>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
