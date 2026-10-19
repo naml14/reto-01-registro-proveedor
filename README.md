@@ -252,7 +252,35 @@ bun run scripts/smoke-test.ts https://agente.tudominio.com
 | **404 en el puerto 80** | El router solo existe en el entrypoint HTTPS | Normal: usa siempre `https://` |
 | **NXDOMAIN** al resolver el dominio | Falta el registro A | Cloudflare: A `zl17t2tqyifz1ylorbog3vld9` -> IP del VPS, en **DNS only** (nube gris) |
 
-### 4.2 Alternativas
+### 4.3 Enmascarar el enlace (que no aparezca el dominio interno)
+
+Si no quieres que el enlace enviado a la defensa muestre el dominio de tu infraestructura
+(`agente.electrondevnaml.dev`) ni la IP del VPS, hay tres caminos:
+
+| Opción | Resultado | Coste | Depende de |
+|---|---|---|---|
+| **A. Cloudflare Worker** (recomendada) | `https://registro-proveedor.<cuenta>.workers.dev` — no aparece ni el dominio interno ni la IP | Gratis, ~15 min | Solo del Worker |
+| **B. Dominio propio** | `https://agente.tudominio.com` — lo más profesional | ~12 USD/año | DNS + redeploy |
+| **C. URL por puerto** | `http://<IP>:3000` — sin subdominio ni DNS | Gratis, ya funciona | Nada mas |
+
+**A · Cloudflare Worker (el archivo `deploy/worker-enmascarado.js` de este repo)**
+
+1. Cloudflare → **Workers & Pages** → Create → **Worker** → Start from Hello World → **Edit code**.
+2. Borra el contenido y pega el de `deploy/worker-enmascarado.js` (el `export default` es lo importante).
+3. **Deploy**. El panel te da la URL: `https://<nombre>.<cuenta>.workers.dev`.
+4. Opcional: en el Worker's **Settings → Domains → Add a custom domain** para publicarlo en tu dominio.
+
+El Worker reenvia todo al agente (chat, API y estaticos) y devuelve la respuesta tal cual. Como
+apunta por defecto al puerto publicado del contenedor (`http://193.34.69.237:3000`), **no depende de
+Traefik ni del DNS**: funciona aunque el enrutado del proxy siga pendiente.
+
+**B · Dominio propio**: compra un dominio barato,:add-to Cloudflare → registro A `agente` → IP del
+VPS → en Coolify cambia `DOMINIO` y haz **Redeploy**. El certificado lo emite Traefik solo.
+
+**C · Inmediato**: `http://193.34.69.237:3000` ya responde (verificado con el smoke test). Sin HTTPS,
+pero sin dominio ni subdominio a la vista.
+
+### 4.4 Alternativas
 
 **Enlace actual de la defensa (tunel publico, activo mientras el servidor siga arriba):**
 
