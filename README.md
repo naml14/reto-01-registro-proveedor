@@ -135,17 +135,23 @@ equipo**: Coolify construye en el VPS.
 
 #### Paso 0 · Subir el código a GitHub (desde tu PC)
 
-El repositorio ya es un repo git con 13 commits. Crea en GitHub un repositorio **vacío** (sin
-README, sin `.gitignore`) y empújalo:
+El repositorio ya es un repo git con 15 commits y **ya está publicado** en:
+
+```
+https://github.com/naml14/reto-01-registro-proveedor
+```
+
+Si necesitas republicarlo o cambiarlo:
 
 ```bash
 cd E:/trabajo/periferia/reto-01
-git remote add origin https://github.com/<tu-usuario>/reto-01-registro-proveedor.git
-git push -u origin main
+gh repo create reto-01-registro-proveedor --public --source=. --push
+# o, sobre el repo que ya existe
+git push origin main
 ```
 
-El repo debe quedar con la **raíz = la carpeta `reto-01`** (ahí están `Dockerfile`, `package.json`,
-`src/`, `web/`, `fixtures/`). Si prefieres un repo privado, usa en Coolify la opción
+El repo tiene la **raíz = la carpeta `reto-01`** (ahí están `Dockerfile`, `package.json`,
+`bun.lock`, `src/`, `web/`, `fixtures/`). Si prefieres un repo privado, usa en Coolify la opción
 **Private Repository (with Deploy Key)** y pega la clave pública que te muestre.
 
 #### Paso 1 · New Resource
@@ -154,7 +160,7 @@ En Coolify v4: **Projects → New Resource → Public Repository** (columna "Git
 
 | Campo | Valor |
 |---|---|
-| Repository URL | `https://github.com/<tu-usuario>/reto-01-registro-proveedor` |
+| Repository URL | `https://github.com/naml14/reto-01-registro-proveedor` |
 | Branch | `main` |
 
 Pulsa **Check repository** y luego **Continue**.
