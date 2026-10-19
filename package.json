@@ -1,0 +1,26 @@
+{
+  "name": "reto-01-registro-proveedor",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Agente conversacional de registro como proveedor - Reto 01 Periferia IT Group",
+  "scripts": {
+    "dev": "bun run src/server.ts",
+    "start": "bun run src/server.ts",
+    "demo": "bun run demo.ts",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit",
+    "sincronizar": "bun run scripts/sincronizar-modulo.ts",
+    "tunel": "npx --yes untun --port 3000"
+  },
+  "dependencies": {
+    "exceljs": "^4.4.0",
+    "pdfkit": "^0.16.0",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/pdfkit": "^0.13.9",
+    "typescript": "^5.6.0"
+  }
+}
