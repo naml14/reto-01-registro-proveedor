@@ -175,7 +175,12 @@ async function manejarChat(cuerpo: { sessionId?: string; message?: string }): Pr
       resultados.push({ nombre: llamada.nombre, id, contenido: salida });
     }
 
-    sesion.mensajes.push({ rol: "assistant", contenido: respuesta.texto, llamadas: registradas });
+    sesion.mensajes.push({
+      rol: "assistant",
+      contenido: respuesta.texto,
+      llamadas: registradas,
+      bloquesCrudos: respuesta.bloquesCrudos,
+    });
     for (const resultado of resultados) {
       sesion.mensajes.push({
         rol: "tool",

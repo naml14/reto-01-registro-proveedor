@@ -18,6 +18,12 @@ export function aMensajesAnthropic(mensajes: Mensaje[]): unknown[] {
     }
 
     if (mensaje.rol === "assistant") {
+      // Si el proveedor devolvio bloques crudos (texto, tool_use, thinking), se
+      // reenvian tal cual: es lo que exigen los modelos con razonamiento.
+      if (mensaje.bloquesCrudos !== undefined && mensaje.bloquesCrudos.length > 0) {
+        salida.push({ role: "assistant", content: mensaje.bloquesCrudos });
+        continue;
+      }
       const contenido: unknown[] = [];
       if (mensaje.contenido.trim() !== "") {
         contenido.push({ type: "text", text: mensaje.contenido });

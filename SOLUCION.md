@@ -144,10 +144,10 @@ red o sin clave, y para reproducir la conversación del §11 del PRD de forma ex
 
 | Aspecto | Decisión |
 |---|---|
-| Proveedor | **Anthropic** (`claude-sonnet-4-5`) por defecto; **OpenAI o cualquier compatible** (`gpt-4.1-mini`) como alternativa; **modo determinista** si no hay clave. |
-| Por qué | El trabajo es de *extracción y estructuración* sobre textos cortos y muy tipados (glosario, plantillas, maestro). Cualquier modelo de frontera sirve; lo que decide el costo es el **número de turnos**, no el tamaño del modelo. Anthropic además expone `input_schema` (JSON Schema nativo) y tool-use estable, que encaja con el contrato zod del PRD. |
-| Diseño | La interfaz `AdaptadorLLM` es propia: cambiar de proveedor es escribir un `responder()` más. Ya hay tres implementaciones. |
-| Seguridad | La clave vive solo en el backend, leída de variable de entorno. No se expone en `/api/health` (solo devuelve `provider` y `model`), ni en el front, ni en el repositorio, ni en los logs. |
+| Proveedor | **MiniMax** (plan M), modelo `MiniMax-M3.1-Flash`, por su endpoint **compatible con Anthropic** (`https://api.minimax.io/anthropic/v1/messages`). Alternativas en el código: **Anthropic**, **OpenAI o cualquier compatible**, y **modo determinista** si no hay credencial. |
+| Por qué | (1) El endpoint compatible con Anthropia trae **tool calling nativo** (`tools` con `input_schema`, respuesta con bloques `tool_use`), que es exactamente el contrato que exige el PRD; es el protocolo que MiniMax recomienda. (2) El trabajo es de *extracción y estructuración* sobre textos cortos y muy tipados (glosario, plantillas, maestro): no hace falta el modelo más caro del mercado, sino uno que llame herramientas de forma estable y no invente. (3) El ciclo del agente no depende del proveedor: la interfaz `AdaptadorLLM` es propia y ya hay cuatro implementaciones. |
+| Diseño | La interfaz `AdaptadorLLM` es propia: cambiar de proveedor es escribir un `responder()` más. `src/llm/minimax.ts` reutiliza el adaptador compatible con Anthropic, así que no hay duplicación de código entre MiniMax y Anthropic. |
+| Seguridad | La credencial (Subscription Key del plan M) vive solo en el backend, leída de variable de entorno. No se expone en `/api/health` (solo devuelve `provider` y `model`), ni en el front, ni en el repositorio, ni en los logs. **Nunca se escribe en el `Dockerfile`**: una clave en una capa de imagen es legible con `docker history`. |
 
 ### 4.1 Análisis de costos (por caso procesado)
 
@@ -155,19 +155,27 @@ Supuestos: 1 caso ≈ 4 turnos (leer → mapear → generar → armar) + 1 turno
 prompt ≈ 700 tokens; definiciones de las 5 herramientas ≈ 1.200 tokens; resultado de cada
 herramienta ≈ 400–1.500 tokens; respuesta del modelo ≈ 300 tokens.
 
-| Concepto | Tokens por caso | Precio (Claude Sonnet 4.5, referencia) | Costo |
-|---|---|---|---|
-| Entrada (prompt + herramientas + historial) | ≈ 12.000 | 3 USD / 1M | ≈ 0,036 USD |
-| Salida (razonamiento + respuesta) | ≈ 1.500 | 15 USD / 1M | ≈ 0,023 USD |
-| **Total por caso** | ≈ 13.500 | — | **≈ 0,06 USD** |
-| **Total por mes (8–12 casos)** | ≈ 130.000 | — | **≈ 0,5–0,7 USD/mes** |
+| Concepto | Tokens por caso |
+|---|---|
+| Entrada (prompt + herramientas + historial) | ≈ 12.000 |
+| Salida (razonamiento + respuesta) | ≈ 1.500 |
+| **Total por caso** | **≈ 13.500** |
+| **Total por mes (8–12 casos)** | **≈ 110.000 – 160.000 tokens** |
 
-Referencia de precios: tabla pública de Anthropic (USD por millón de tokens). Antes de la defensa
-conviene revalidarla; el cálculo depende del precio, no del diseño.
+**Con el plan M de MiniMax el costo no es por token sino por cuota incluida en la suscripción**:
+lo que importa es el consumo. Con 8–12 casos al mes el agente consumiría del orden de
+**0,1 – 0,2 millones de tokens al mes**, varios órdenes de magnitud por debajo de los planes de
+pago por uso. El consumo real se lee en la consola de MiniMax (panel de uso) y, en el propio
+agente, el tope `MAX_TOKENS_SESION` impide que una sesión desmedida agote la cuota.
 
-Con topes: `MAX_ITERACIONES=25` y `MAX_TOKENS_SESION=120000` acotan el peor caso por sesión (≈ 0,5
-USD), y `MAX_ITERACIONES` evita el bucle infinito de "el modelo vuelve a llamar a la misma
-herramienta". El modo determinista tiene costo **cero** y cubre la verificación y la demo.
+Como referencia de mercado, con la lista pública de precios de Anthropic
+(claude-sonnet-4-5: 3 USD/1M de entrada y 15 USD/1M de salida) el mismo trabajo costaría
+≈ 0,06 USD por caso, es decir **≈ 0,5 – 0,7 USD al mes**; con MiniMax el plan M ya está pagado
+adelantado y el agente consume una fracción marginal de la cuota.
+
+Los topes que protegen la cuota: `MAX_ITERACIONES=25` corta el bucle, `MAX_TOKENS_SESION=120000`
+cierra la sesión, y `src/llm/guiado.ts` (modo determinista) tiene costo **cero** y cubre la
+verificación y la demo.
 
 ## 5. Diseño del formato "portal web" (P2, solo documentación)
 
@@ -350,7 +358,7 @@ y todos los mensajes de error que ve la analista se probaron ejecutando el códi
 | **Plantillas peores que las del fixture** (celdas movidas, campos duplicados) | Formulario mal diligenciado | Validar que cada celda de la plantilla existe antes de escribir; fallar cerrado con un error claro en lugar de escribir en la celda de al lado; catálogo versionado de plantillas por cliente |
 | **Soporte vencido que el sistema no detecta** | Se envía un paquete con documentación inválida | Vigencia evaluada contra el índice, con fecha explícita en el checklist; bloqueo de `listo_para_firma`; alerta al vencer, no solo en el momento de usarlo |
 | **Datos bancarios filtrados a un destinatario externo** | Incidente de seguridad y de cumplimiento | RN2: los datos bancarios solo se llenan si la plantilla los pide y nunca van en el borrador de correo; prueba que lo verifica |
-| **Fuga de la clave del modelo** | Gasto no autorizado | Clave solo en variable de entorno del backend; nunca en el front, el repo ni los logs; `MAX_TOKENS_SESION` acota el gasto por sesión |
+| **Fuga de la clave del modelo** | Gasto no autorizado, o cuenta bloqueada por MiniMax (la documentación avisa que una clave publicada puede deshabilitarse automáticamente) | La credencial solo se lee de una variable de entorno del backend; nunca está en el front, el repositorio, los logs ni las respuestas de la API. **Nunca se escribe en el `Dockerfile`** (quedaría en las capas de la imagen): llega en runtime desde Coolify (Environment Variables), desde un `.env` con `chmod 600` en el VPS, o desde un secreto de Docker. `scripts/probar-proveedor.ts` verifica la clave **sin imprimirla**. `MAX_TOKENS_SESION` acota el gasto por sesión. |
 | **Un caso manipulado (path traversal) lee archivos fuera del repo** | Fuga de datos | El nombre del caso se valida contra un patrón estricto y todas las rutas se resuelven desde `ctx.directory`; las herramientas no ejecutan comandos de shell |
 | **Alta en un portal con CAPTCHA o MFA** | Bloqueo operativo | Fuera del alcance automatizado: el humano opera el portal con los valores ya resueltos (§5) |
 | **La IA del modelo se equivoca al resumir** | La analista se gu��a por un resumen incorrecto | Todo dato del resumen viene del `data` de una herramienta; los paths de los artefactos se citan literalmente; el detalle completo está en `checklist.md` |
@@ -375,6 +383,9 @@ No es una declaración de intenciones: son los comandos ejecutados y su resultad
 | PDF legible | extracción de texto | etiqueta y valor en líneas separadas, sin solapamientos |
 | Determinismo | dos ejecuciones seguidas | contenido idéntico (el `.xlsx` solo difiere en el timestamp interno del ZIP) |
 | Instancia viva, extremo a extremo | `bun run scripts/smoke-test.ts <url>` | 7/7 verificaciones, local y por la URL pública |
+| Petición a MiniMax sin tocarla | `bun test` (minimax) | endpoint `/anthropic/v1/messages`, `Authorization: Bearer`, `x-api-key`, cuerpo con `model`, `system` y `tools[].input_schema` |
+| Selección de proveedor | `bun test` (minimax) | `minimax` con `MINIMAX_API_KEY`; prioridad en `auto`; `guiado` sin credencial |
+| La credencial no se imprime | `scripts/probar-proveedor.ts` | el script reporta longitud y resultado, nunca el valor |
 | Puerta de confirmación en el chat | guion del §11 del PRD | procesar → 4 tool calls + `needsConfirmation`; "envíalo" → `ENVIO-SIMULADO.md`; sin confirmación previa → vuelve a preguntar |
 
 **Lo que no está verificado** (y por qué no importa para la defensa):

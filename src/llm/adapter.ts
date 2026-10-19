@@ -19,6 +19,12 @@ export interface LlamadaHerramienta {
 export interface RespuestaLLM {
   texto: string;
   llamadas: LlamadaHerramienta[];
+  /**
+   * Bloques de contenido tal como los devolvio el proveedor. Se reenvian sin
+   * tocar en el turno siguiente: los modelos con razonamiento (thinking) exigen
+   * que el bloque y su firma se devuelvan identicos.
+   */
+  bloquesCrudos?: unknown[];
 }
 
 export interface LlamadaRegistrada extends LlamadaHerramienta {
@@ -27,7 +33,12 @@ export interface LlamadaRegistrada extends LlamadaHerramienta {
 
 export type Mensaje =
   | { rol: "user"; contenido: string }
-  | { rol: "assistant"; contenido: string; llamadas?: LlamadaRegistrada[] }
+  | {
+      rol: "assistant";
+      contenido: string;
+      llamadas?: LlamadaRegistrada[];
+      bloquesCrudos?: unknown[];
+    }
   | { rol: "tool"; contenido: string; nombre: string; id: string };
 
 export interface AdaptadorLLM {

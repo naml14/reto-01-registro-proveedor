@@ -29,24 +29,78 @@ proceso.
 
 ### Variables de entorno
 
+La lista completa está en la sección 2. Para arrancar basta con:
+
+```bash
+bun install
+cp env.example .env      # opcional: con .env defines la credencial del modelo
+bun run dev              # front + backend en http://localhost:3000
+```
+
+## 2. Credencial del modelo (MiniMax): dónde va y cómo se verifica
+
+La credencial del plan M es la **Subscription Key** que aparece en
+[Facturación → M Plan](https://platform.minimax.io/console/plan). Se envía como token Bearer y
+**no necesita Group ID**. El proyecto usa el endpoint **compatible con Anthropic**, que es el
+recomendado por MiniMax y el que trae tool calling nativo:
+
+```
+POST https://api.minimax.io/anthropic/v1/messages
+Authorization: Bearer <SUBSCRIPTION KEY>
+```
+
+Si prefieres el protocolo compatible con OpenAI: `MINIMAX_PROTOCOLO=openai` →
+`https://api.minimax.io/v1/chat/completions`.
+
+### Dónde va la clave (en este orden)
+
+| # | Dónde | Cómo | Por qué |
+|---|---|---|---|
+| 1 | **Coolify (VPS)** | Application → Environment Variables → `MINIMAX_API_KEY` | Cifrada en el panel; se inyecta al contenedor en runtime; nunca pasa por el repo |
+| 2 | **`.env` en el VPS** | `cp env.example .env`, pegas la clave, `chmod 600 .env` | Está en `.gitignore` y `.dockerignore`: no llega al repo ni a la imagen |
+| 3 | **Secreto de Docker** | `echo -n "CLAVE" > /etc/docker/secrets/minimax_key && chmod 400 /etc/docker/secrets/minimax_key` | El archivo vive fuera del repositorio |
+
+**Dónde nunca va:** en el chat, en el repositorio, en el `Dockerfile` (una clave escrita ahí
+queda grabada en las capas de la imagen y se lee con `docker history`), en el front (cualquier
+visitante del chat la vería), en los logs ni en `out/`. La propia documentación de MiniMax avisa
+que una clave publicada puede ser deshabilitada automáticamente.
+
+### Verifica la clave en 5 segundos
+
+```bash
+bun run scripts/probar-proveedor.ts
+```
+
+```
+Credencial encontrada (180 caracteres, no se muestra).
+[OK  ] credencial valida (GET /models -> 200)
+       modelos disponibles: MiniMax-M3.1-Flash, MiniMax-M3, ...
+[OK  ] modelo MiniMax-M3.1-Flash responde (HTTP 200): "OK"
+```
+
+El script **nunca imprime la clave**: solo dice si es válida y si el modelo responde.
+
+### Variables de entorno
+
 | Variable | Por defecto | Para qué sirve |
 |---|---|---|
-| `LLM_PROVIDER` | `auto` | `anthropic` \| `openai` \| `auto`. `auto` usa Anthropic si hay `ANTHROPIC_API_KEY`, OpenAI si hay `OPENAI_API_KEY`. |
-| `ANTHROPIC_API_KEY` | — | Clave del modelo. **Solo en el backend.** Nunca en el front, el repo, los logs ni las respuestas de la API. |
-| `OPENAI_API_KEY` | — | Alternativa (o cualquier API compatible: Groq, Together, OpenRouter, LM Studio) vía `OPENAI_BASE_URL`. |
-| `LLM_MODEL_ANTHROPIC` | `claude-sonnet-4-5` | Modelo de Anthropic. |
-| `LLM_MODEL_OPENAI` | `gpt-4.1-mini` | Modelo de OpenAI. |
+| `LLM_PROVIDER` | `minimax` | `minimax` \| `anthropic` \| `openai` \| `auto`. `auto` toma la primera clave que encuentre. |
+| `MINIMAX_API_KEY` | — | La Subscription Key. **Solo en el backend.** |
+| `MINIMAX_PROTOCOLO` | `anthropic` | `openai` para usar el endpoint compatible con OpenAI. |
+| `MINIMAX_BASE_URL` | `https://api.minimax.io/anthropic` | Solo si usas un proxy o un gateway propio. |
+| `LLM_MODEL_MINIMAX` | `MiniMax-M3.1-Flash` | Modelo (también `MiniMax-M3`, `MiniMax-M2.7`, `MiniMax-M2.5`). |
+| `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` | — | Alternativas, si algún día se cambian. |
 | `MAX_ITERACIONES` | `25` | Tope de iteraciones herramienta → modelo por turno (CA1). |
 | `MAX_TOKENS_SESION` | `120000` | Tope de tokens estimados por sesión: nadie gasta la clave sin límite. |
 | `FECHA_EJECUCION` | vacío | Fecha para evaluar vigencias de soportes. Vacío = fecha de cada caso (determinista). |
-| `PORT` | `3000` | Puerto HTTP. |
+| `HOST` / `PORT` | `0.0.0.0` / `3000` | Interfaz y puerto. `0.0.0.0` es obligatorio en contenedor. |
 
-**Sin ninguna clave configurada el chat sigue funcionando**: entra el *modo determinista*
+**Sin ninguna credencial configurada el chat sigue funcionando**: entra el *modo determinista*
 (`src/llm/guiado.ts`), que recorre el mismo ciclo de herramientas con un plan fijo y redacta el
 resumen con los valores que devuelven las herramientas. Sirve para la defensa y para correr el
 proyecto sin depender de la red.
 
-## 2. Verificación sin modelo (demo)
+## 3. Verificación sin modelo (demo)
 
 ```bash
 bun install && bun run demo.ts
@@ -58,7 +112,7 @@ faltantes, ruta del formulario, estado `listo_para_firma` y soportes presentes/a
 Además comprueba que el envío **se rechaza sin confirmación explícita**. Termina con código de
 salida 1 si algún caso falla.
 
-## 3. Pruebas
+## 4. Pruebas
 
 ```bash
 bun test            # 22 pruebas: reglas de dominio (RN1, HU-1/HU-2, RN3, CA3) y formato de mensajes de los adaptadores de LLM
@@ -71,7 +125,7 @@ estáticos, ciclo del agente (leer → mapear → generar → armar), confirmaci
 simulado y consulta del historial de sesión. Sale con código 0 si todo pasa. Es el mismo guion que
 va a usar la defensa, así que **si el smoke test pasa, la URL sirve**.
 
-## 4. Enlace para probar
+## 5. Enlace para probar
 
 ### 4.1 Despliegue en el VPS con Coolify (recomendado para la defensa)
 
@@ -132,7 +186,7 @@ npx --yes untun --port 3000
 
 Si no hay despliegue disponible, el PRD §9.3 acepta correrlo en local en la defensa con **-10**.
 
-## 5. Estructura del repositorio
+## 6. Estructura del repositorio
 
 ```
 reto-01/
@@ -162,7 +216,7 @@ reto-01/
 Dependencias: `zod` (obligatoria por el PRD), `exceljs` (escritura de `.xlsx`), `pdfkit`
 (generación de `.pdf`). Justificación en `SOLUCION.md` §6.
 
-## 6. Uso en el chat
+## 7. Uso en el chat
 
 ```
 Procesa el caso "ec-corp-andina". Dime qué campos quedaron llenos, cuáles
@@ -174,7 +228,7 @@ El chat muestra cada llamada a herramienta (nombre, argumentos y resultado), el 
 "pensando" y, cuando el agente pide confirmación, un aviso resaltado. Un segundo mensaje
 ("sí, envíalo") produce `out/<caso>/ENVIO-SIMULADO.md`; **nunca** un correo real.
 
-## 7. Reglas del repositorio
+## 8. Reglas del repositorio
 
 - `out/`, `node_modules/` y `.env` no se versionan.
 - `fixtures/` no se modifica.

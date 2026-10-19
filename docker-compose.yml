@@ -1,0 +1,93 @@
+# ---------------------------------------------------------------------------
+# Entrega del reto 01 - Agente conversacional "Registro como Proveedor"
+#
+#   docker compose up -d --build
+#
+# ---------------------------------------------------------------------------
+# DONDE PEGAR LA CREDENCIAL DEL MODELO (MiniMax)
+#
+# NO la pongas en el Dockerfile: una clave escrita alli queda grabada en las
+# capas de la imagen y cualquiera que descargue la imagen la puede leer con
+# `docker history`. Tampoco en el repositorio, ni en el front, ni en los logs.
+#
+# Opciones, de mas segura a menos segura:
+#
+#  1. En Coolify (VPS): Application > Environment Variables > MINIMAX_API_KEY.
+#     Queda cifrada en el panel y se inyecta al contenedor en tiempo de ejecucion.
+#
+#  2. En un archivo .env junto a este compose (lo que se usa en este archivo):
+#     crea el archivo con `cp env.example .env`, pega la clave y protejelo:
+#         chmod 600 .env
+#     .env esta en .gitignore y en .dockerignore: nunca entra al repositorio
+#     ni a la imagen.
+#
+#  3. Como secreto de Docker (swarm): ver la seccion `secrets` de abajo.
+# ---------------------------------------------------------------------------
+
+services:
+  agente:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: reto-01-registro-proveedor:latest
+    container_name: reto-01-agente
+    restart: unless-stopped
+
+    # El archivo .env de esta carpeta: aqui se pega la credencial.
+    # NO se versiona (esta en .gitignore) y NO se copia a la imagen (.dockerignore).
+    env_file:
+      - .env
+
+    # Variables que se pueden sobreescribir desde el entorno o desde un .env propio.
+    environment:
+      LLM_PROVIDER: "${LLM_PROVIDER:-minimax}"
+      LLM_MODEL_MINIMAX: "${LLM_MODEL_MINIMAX:-MiniMax-M3.1-Flash}"
+      # MINIMAX_API_KEY llega por env_file. Si se define tambien aqui, gana el .env.
+      HOST: "0.0.0.0"
+      PORT: "3000"
+      MAX_ITERACIONES: "${MAX_ITERACIONES:-25}"
+      MAX_TOKENS_SESION: "${MAX_TOKENS_SESION:-120000}"
+      # FECHA_EJECUCION vacio = fecha de cada caso (determinista).
+      FECHA_EJECUCION: "${FECHA_EJECUCION:-}"
+
+    ports:
+      - "${PUERTO_PUBLICO:-3000}:3000"
+
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "bun",
+          "-e",
+          "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# ---------------------------------------------------------------------------
+# Alternativa con secreto de Docker (swarm). El archivo de secreto vive fuera
+# del repositorio, en /etc/docker/secrets/minimax_key, con permisos 400.
+#
+#   echo -n "TU_CLAVE" > /etc/docker/secrets/minimax_key
+#   chmod 400 /etc/docker/secrets/minimax_key
+#
+# y en el servicio, en lugar de env_file:
+#
+#   secrets:
+#     - minimax_key
+#   secrets:
+#     minimax_key:
+#       file: /etc/docker/secrets/minimax_key
+#
+# y en environment:
+#
+#   MINIMAX_API_KEY: "/run/secrets/minimax_key"
+# ---------------------------------------------------------------------------
