@@ -130,33 +130,95 @@ va a usar la defensa, así que **si el smoke test pasa, la URL sirve**.
 ### 4.1 Despliegue en el VPS con Coolify (recomendado para la defensa)
 
 El proyecto incluye `Dockerfile` y `.dockerignore`, así que el despliegue es reproducible: el
-servidor construye la imagen desde cero, no copia nada de tu PC.
+servidor construye la imagen desde cero, no copia nada de tu PC. **No necesitas Docker en tu
+equipo**: Coolify construye en el VPS.
 
-En Coolify (Application → New Resource → Docker Compose / Dockerfile):
+#### Paso 0 · Subir el código a GitHub (desde tu PC)
+
+El repositorio ya es un repo git con 13 commits. Crea en GitHub un repositorio **vacío** (sin
+README, sin `.gitignore`) y empújalo:
+
+```bash
+cd E:/trabajo/periferia/reto-01
+git remote add origin https://github.com/<tu-usuario>/reto-01-registro-proveedor.git
+git push -u origin main
+```
+
+El repo debe quedar con la **raíz = la carpeta `reto-01`** (ahí están `Dockerfile`, `package.json`,
+`src/`, `web/`, `fixtures/`). Si prefieres un repo privado, usa en Coolify la opción
+**Private Repository (with Deploy Key)** y pega la clave pública que te muestre.
+
+#### Paso 1 · New Resource
+
+En Coolify v4: **Projects → New Resource → Public Repository** (columna "Git Based").
 
 | Campo | Valor |
 |---|---|
-| Repositorio | el repo donde subiste el proyecto (el `reto-01` de este zip, o el repo de Git) |
-| Build Pack / Dockerfile | `Dockerfile` (incluido) |
-| Puerto interno | `3000` (Coolify lo inyecta como variable `PORT`, el servidor la lee) |
-| Dominio | el subdominio de la defensa, p. ej. `registro.periferia-ficticia.com` |
-| Variables de entorno | `ANTHROPIC_API_KEY` (opcional) y `FECHA_EJECUCION` si quieres fijar la fecha |
-| Réplicas | **1** (las sesiones viven en memoria; con 2 réplicas el historial se parte) |
-| Health check | el del `Dockerfile`: `GET /api/health` |
+| Repository URL | `https://github.com/<tu-usuario>/reto-01-registro-proveedor` |
+| Branch | `main` |
 
-El proceso escucha en `0.0.0.0` (`HOST`), que es lo que necesita el proxy del VPS. El contenedor
-también trae `HEALTHCHECK` y cierre ordenado por `SIGTERM`, para que el redeploy de Coolify no
-deje conexiones colgadas.
+Pulsa **Check repository** y luego **Continue**.
 
-**Verifica el despliegue en 30 segundos**, desde tu máquina o por SSH en el VPS:
+#### Paso 2 · Configuration
+
+| Campo | Valor | Por qué |
+|---|---|---|
+| Build Pack | **Dockerfile** | El proyecto trae `Dockerfile` propio; fija `oven/bun:1.4.3-alpine` |
+| Dockerfile Location | `/Dockerfile` | Está en la raiz del repo |
+| Base Directory | *(vacio)* | La raiz del repo **es** la carpeta `reto-01` |
+| Docker Context | `/` | |
+| Port | `3000` | El servidor lee `PORT` |
+| Health check path | `/api/health` | Lo usa Coolify y el `HEALTHCHECK` de la imagen |
+| Replicas | `1` | Las sesiones viven en memoria |
+
+#### Paso 3 · Environment Variables (aqui va la credencial)
+
+Pestaña **Environment Variables** de la aplicación:
+
+| Variable | Valor |
+|---|---|
+| `MINIMAX_API_KEY` | *(tu Subscription Key del plan M)* |
+| `LLM_PROVIDER` | `minimax` |
+| `LLM_MODEL_MINIMAX` | `MiniMax-M3.1-Flash` |
+| `FECHA_EJECUCION` | *(vacio → fecha de cada caso, determinista)* |
+
+Coolify guarda las variables cifradas en su panel y las inyecta al contenedor **en runtime**. La
+clave **no** entra en el repo, ni en la imagen, ni en los logs. No la pongas en `Dockerfile`: ahi
+queda grabada en las capas de la imagen y se lee con `docker history`.
+
+#### Paso 4 · Dominio (esto es lo que hace la URL publica)
+
+Pestaña **Domains**:
+
+- Si tienes un dominio: crea un registro **A** apuntando al IP del VPS (ej. `agente.tudominio.com`)
+  y añádelo en Domains. Coolify emite el certificado Let's Encrypt solo.
+- Si no tienes dominio: el dominio por defecto de Coolify es `*.localhost`, que **no** es público.
+  Publica el puerto directamente: en Domains añade `http://<IP_DEL_VPS>:8000` y abre el 8000 en el
+  firewall del VPS (`ufw allow 8000/tcp`) y en el grupo de seguridad del cloud.
+
+> El proxy de Coolify (Traefik) escucha en 80/443 y 8000; la aplicación habla con él por la red
+> interna del servidor, por eso el contenedor debe escuchar en `0.0.0.0` (ya lo hace: `HOST=0.0.0.0`).
+
+#### Paso 5 · Deploy y verificacion
+
+**Deploy** → mira el log del build (debe instalar dependencias y arrancar el servidor) y luego,
+desde tu maquina:
 
 ```bash
-bun run scripts/smoke-test.ts https://tu-dominio
+bun run scripts/smoke-test.ts https://agente.tudominio.com
 ```
 
-Imprime 7 verificaciones (salud, front, estáticos, ciclo del agente, confirmación humana e
-historial) y sale con código 0 solo si todas pasan. Es exactamente lo que va a hacer la
-defensa, así que si el smoke test pasa, la URL sirve.
+7 verificaciones en 30 segundos. Si sale `Todo OK`, la URL de la defensa sirve.
+
+#### Si el build falla
+
+| Sintoma | Causa probable | Arreglo |
+|---|---|---|
+| `COPY failed: file not found` | Base Directory mal puesto | Dejalo vacio (la raiz del repo es `reto-01`) |
+| `bun install` falla | `bun.lock` desincronizado | Sube el `bun.lock` al repo (ya esta versionado) |
+| El contenedor arranca y cae | Falta `PORT` o el puerto no coincide | `PORT=3000` en Environment Variables y `Port = 3000` en Configuration |
+| Responde 502 | La app escucha en `127.0.0.1` | Debe usar `HOST=0.0.0.0` (ya esta en el Dockerfile) |
+| `401` del proveedor | Credencial mal pegada | `bun run scripts/probar-proveedor.ts` en el VPS |
 
 ### 4.2 Alternativas
 
