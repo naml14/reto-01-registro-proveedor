@@ -183,10 +183,14 @@ Environment Variables del recurso (obligatorias):
 
 | Variable | Valor |
 |---|---|
-| `DOMINIO` | `agente.electrondevnaml.dev` (o el hostname que hayas creado en Cloudflare) |
 | `MINIMAX_API_KEY` | *(tu Subscription Key del plan M)* |
 | `LLM_PROVIDER` | `minimax` |
 | `LLM_MODEL_MINIMAX` | `MiniMax-M3.1-Flash` |
+
+> **El hostname va literal en el label de Traefik del compose**, no en una variable: Coolify no
+> interpola `${...}` dentro de los labels, y Traefik rechaza la regla con
+> *"invalid value for HostSNI matcher"* (además Let's Encrypt rechaza el dominio inventado).
+> Para cambiarlo hay que editar `docker-compose.yml` y el registro DNS.
 
 #### Paso 2 · Configuration
 
@@ -249,6 +253,7 @@ bun run scripts/smoke-test.ts https://agente.tudominio.com
 | Responde 502 | La app escucha en `127.0.0.1` | Debe usar `HOST=0.0.0.0` (ya esta en el Dockerfile) |
 | `401` del proveedor | Credencial mal pegada | `bun run scripts/probar-proveedor.ts` en el VPS |
 | **503 "no available server"** | Traefik conoce el hostname pero no tiene backend: los labels autogenerados por Coolify no se aplicaron | Despliega con **Build Pack = Docker Compose** (opcion A del paso 1, labels de Traefik explicitos), o **Redeploy** + reinicio del proxy |
+| **Certificado "TRAEFIK DEFAULT CERT" / `ERR_CERT_AUTHORITY_INVALID`** | El label traia una variable sin interpolar (`Host(\`${DOMINIO...}\`)`): Traefik rechazo la regla y ACME pidio un dominio invalido | El hostname debe ir **literal** en el label; revisa el log del proxy (`docker logs coolify-proxy`) |
 | **404 en el puerto 80** | El router solo existe en el entrypoint HTTPS | Normal: usa siempre `https://` |
 | **NXDOMAIN** al resolver el dominio | Falta el registro A | Cloudflare: A `zl17t2tqyifz1ylorbog3vld9` -> IP del VPS, en **DNS only** (nube gris) |
 
@@ -275,7 +280,7 @@ apunta por defecto al puerto publicado del contenedor (`http://193.34.69.237:300
 Traefik ni del DNS**: funciona aunque el enrutado del proxy siga pendiente.
 
 **B · Dominio propio**: compra un dominio barato,:add-to Cloudflare → registro A `agente` → IP del
-VPS → en Coolify cambia `DOMINIO` y haz **Redeploy**. El certificado lo emite Traefik solo.
+VPS → edita el label `traefik.http.routers.reto01.rule` del `docker-compose.yml` y haz **Redeploy**. El certificado lo emite Traefik solo.
 
 **C · Inmediato**: `http://193.34.69.237:3000` ya responde (verificado con el smoke test). Sin HTTPS,
 pero sin dominio ni subdominio a la vista.

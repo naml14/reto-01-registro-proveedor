@@ -41,9 +41,15 @@ services:
       FECHA_EJECUCION: "${FECHA_EJECUCION:-}"
 
     # Patron de Traefik identico al del mailserver que ya te funciona.
+    #
+    # IMPORTANTE: el hostname va LITERAL. Coolify NO interpola variables
+    # dentro de los labels: si se deja `${DOMINIO}`, Traefik recibe el texto
+    # crudo, rechaza la regla ("invalid value for HostSNI matcher") y no pide
+    # certificado ("Cannot issue for ... invalid character"). Para cambiar el
+    # dominio hay que editar esta linea (y el registro DNS).
     labels:
       - traefik.enable=true
-      - traefik.http.routers.reto01.rule=Host(`${DOMINIO:-agente.electrondevnaml.dev}`)
+      - traefik.http.routers.reto01.rule=Host(`agente.electrondevnaml.dev`)
       - traefik.http.routers.reto01.tls=true
       - traefik.http.routers.reto01.tls.certresolver=letsencrypt
       - traefik.http.services.reto01.loadbalancer.server.port=3000
