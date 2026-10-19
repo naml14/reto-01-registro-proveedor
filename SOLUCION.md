@@ -356,3 +356,31 @@ y todos los mensajes de error que ve la analista se probaron ejecutando el códi
 | **La IA del modelo se equivoca al resumir** | La analista se gu��a por un resumen incorrecto | Todo dato del resumen viene del `data` de una herramienta; los paths de los artefactos se citan literalmente; el detalle completo está en `checklist.md` |
 | **El agente se usa para enviar spam o envelopes massivos** | Abuso de la herramienta | El envío es simulación local; sin integración de correo no hay superficie de envío; las sesiones tienen tope de tokens |
 | **Dependencia de un solo proveedor** | Caída del servicio | La interfaz `AdaptadorLLM` permite cambiar de proveedor con una implementación nueva; el modo determinista mantiene el chat vivo |
+
+---
+
+## Apéndice A · Evidencia de verificación
+
+No es una declaración de intenciones: son los comandos ejecutados y su resultado.
+
+| Qué se verificó | Comando | Resultado |
+|---|---|---|
+| Los 4 casos del reto, sin modelo | `bun run demo.ts` | 4/4 casos, 0 fallos, salida en `out/` |
+| El envío se rechaza sin confirmación (RN4) | incluido en `demo.ts` | el caso reporta `requiere confirmacion explicita` |
+| Reglas de dominio (RN1, HU-2, RN3, CA3) | `bun test` | 22 pruebas, 0 fallos |
+| Formato del historial hacia los proveedores | `bun test` (adaptador) | Anthropic y OpenAI cubiertos con pruebas puras |
+| Tipos, sin `any` | `bunx tsc --noEmit` | sin errores |
+| El ZIP es autocontenido | `unzip` → `bun install` → `bun run demo.ts` en un directorio limpio | 0 fallos, 15/15 pruebas |
+| Valores en las celdas exactas de la plantilla | lectura del `.xlsx` generado | `B3/C3` … `B15/C15` y hoja `Datos Bancarios` correctos |
+| PDF legible | extracción de texto | etiqueta y valor en líneas separadas, sin solapamientos |
+| Determinismo | dos ejecuciones seguidas | contenido idéntico (el `.xlsx` solo difiere en el timestamp interno del ZIP) |
+| Instancia viva, extremo a extremo | `bun run scripts/smoke-test.ts <url>` | 7/7 verificaciones, local y por la URL pública |
+| Puerta de confirmación en el chat | guion del §11 del PRD | procesar → 4 tool calls + `needsConfirmation`; "envíalo" → `ENVIO-SIMULADO.md`; sin confirmación previa → vuelve a preguntar |
+
+**Lo que no está verificado** (y por qué no importa para la defensa):
+
+| Hueco | Por qué | Mitigación |
+|---|---|---|
+| Llamada real a la API del proveedor | No hay ninguna clave en el entorno | El formato del historial —la parte que más se rompe en silencio— está cubierto por pruebas; la llamada HTTP es un `fetch` con manejo de error explícito (CA5). El modo determinista cubre la demostración sin depender de la red. |
+| Construcción de la imagen Docker | No hay Docker en la máquina de desarrollo | `Dockerfile` mínimo (`oven/bun:1.4.3-alpine`, `bun install --frozen-lockfile`, `HEALTHCHECK` incluido) y verificación de la instancia con `scripts/smoke-test.ts` después del deploy. |
+| Deploy en el VPS | Es una operación del usuario | `bun run scripts/smoke-test.ts https://tu-dominio` da el veredicto en 30 segundos, con el mismo guion que usará la defensa. |

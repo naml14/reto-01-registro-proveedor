@@ -61,24 +61,64 @@ salida 1 si algún caso falla.
 ## 3. Pruebas
 
 ```bash
-bun test            # 15 pruebas de las reglas de dominio (RN1, HU-1/HU-2, RN3, CA3)
+bun test            # 22 pruebas: reglas de dominio (RN1, HU-1/HU-2, RN3, CA3) y formato de mensajes de los adaptadores de LLM
 bunx tsc --noEmit   # typecheck estricto, sin `any`
+bun run smoke http://localhost:3000   # verificacion de extremo a extremo contra una instancia viva
 ```
+
+`scripts/smoke-test.ts` comprueba 7 cosas contra una URL: salud del backend, front de chat,
+estáticos, ciclo del agente (leer → mapear → generar → armar), confirmación humana con envío
+simulado y consulta del historial de sesión. Sale con código 0 si todo pasa. Es el mismo guion que
+va a usar la defensa, así que **si el smoke test pasa, la URL sirve**.
 
 ## 4. Enlace para probar
 
-**Enlace de la defensa (túnel público, activo mientras el servidor siga arriba):**
+### 4.1 Despliegue en el VPS con Coolify (recomendado para la defensa)
+
+El proyecto incluye `Dockerfile` y `.dockerignore`, así que el despliegue es reproducible: el
+servidor construye la imagen desde cero, no copia nada de tu PC.
+
+En Coolify (Application → New Resource → Docker Compose / Dockerfile):
+
+| Campo | Valor |
+|---|---|
+| Repositorio | el repo donde subiste el proyecto (el `reto-01` de este zip, o el repo de Git) |
+| Build Pack / Dockerfile | `Dockerfile` (incluido) |
+| Puerto interno | `3000` (Coolify lo inyecta como variable `PORT`, el servidor la lee) |
+| Dominio | el subdominio de la defensa, p. ej. `registro.periferia-ficticia.com` |
+| Variables de entorno | `ANTHROPIC_API_KEY` (opcional) y `FECHA_EJECUCION` si quieres fijar la fecha |
+| Réplicas | **1** (las sesiones viven en memoria; con 2 réplicas el historial se parte) |
+| Health check | el del `Dockerfile`: `GET /api/health` |
+
+El proceso escucha en `0.0.0.0` (`HOST`), que es lo que necesita el proxy del VPS. El contenedor
+también trae `HEALTHCHECK` y cierre ordenado por `SIGTERM`, para que el redeploy de Coolify no
+deje conexiones colgadas.
+
+**Verifica el despliegue en 30 segundos**, desde tu máquina o por SSH en el VPS:
+
+```bash
+bun run scripts/smoke-test.ts https://tu-dominio
+```
+
+Imprime 7 verificaciones (salud, front, estáticos, ciclo del agente, confirmación humana e
+historial) y sale con código 0 solo si todas pasan. Es exactamente lo que va a hacer la
+defensa, así que si el smoke test pasa, la URL sirve.
+
+### 4.2 Alternativas
+
+**Enlace actual de la defensa (túnel público):**
 
 ```
 https://requested-comfort-smart-aaa.trycloudflare.com
 ```
 
 Es un *quick tunnel* de Cloudflare sobre `http://localhost:3000`: sin cuenta, sin registro y sin
-interstitial. La URL cambia cada vez que se levanta el túnel, así que **hay que tener el servidor
-corriendo durante la defensa**. Para regenerarlo:
+interstitial. **La URL cambia cada vez que se levanta el túnel y depende de que tu PC siga
+encendida**: sirve como respaldo, pero para la defensa conviene el VPS.
+
+Para regenerarlo:
 
 ```bash
-# con cloudflared instalado
 cloudflared tunnel --url http://localhost:3000 --no-autoupdate
 # o, sin instalar nada
 npx --yes untun --port 3000
@@ -86,9 +126,9 @@ npx --yes untun --port 3000
 
 | Opción | Cómo | Nota |
 |---|---|---|
+| VPS + Coolify | `Dockerfile` del repo | URL estable, no depende de tu PC |
 | Local | `bun run dev` → http://localhost:3000 | Válido para la defensa si no hay despliegue en vivo |
 | Túnel efímero | `cloudflared tunnel --url http://localhost:3000` | URL pública en segundos, sin cuenta; cambia al reiniciar |
-| Deploy | `bun run start` en Render / Railway / Fly / Vercel | URL estable; requiere cuenta y token del proveedor |
 
 Si no hay despliegue disponible, el PRD §9.3 acepta correrlo en local en la defensa con **-10**.
 
@@ -109,9 +149,11 @@ reto-01/
 ├── fixtures/reto-01/            # entregado por Periferia, no se modifica
 ├── out/                         # generado en ejecución (no se versiona)
 ├── modulo/                      # bonus 9.4: agente empaquetado
-├── scripts/                     # sincronización del módulo
+├── scripts/                     # sincronización del módulo, empaquetado y smoke test
+├── tests/                       # pruebas de reglas de dominio y de adaptadores
+├── Dockerfile                   # imagen de producción (VPS / Coolify)
+├── .dockerignore
 ├── demo.ts                      # verificación sin modelo
-├── tests/                       # pruebas de reglas de dominio
 ├── env.example                  # variables requeridas, sin valores
 ├── README.md
 └── SOLUCION.md

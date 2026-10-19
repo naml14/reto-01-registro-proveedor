@@ -21,6 +21,9 @@ const RAIZ = path.resolve(import.meta.dir, "..");
 const MAX_ITERACIONES = Number.parseInt(process.env.MAX_ITERACIONES ?? "25", 10);
 const MAX_TOKENS_SESION = Number.parseInt(process.env.MAX_TOKENS_SESION ?? "120000", 10);
 const PUERTO = Number.parseInt(process.env.PORT ?? "3000", 10);
+// 0.0.0.0 es obligatorio en contenedores: si el proceso escucha solo en
+// localhost, el proxy del VPS no puede alcanzar la aplicacion.
+const HOST = process.env.HOST ?? "0.0.0.0";
 
 const promptSistema = await readFile(path.join(RAIZ, "agent", "prompt.md"), "utf8");
 const adaptador = crearAdaptador(promptSistema, RAIZ);
@@ -209,6 +212,7 @@ const ESTATICOS: Record<string, { archivo: string; tipo: string }> = {
 };
 
 const servidor = Bun.serve({
+  hostname: HOST,
   port: PUERTO,
   async fetch(peticion: Request): Promise<Response> {
     const url = new URL(peticion.url);
@@ -266,10 +270,18 @@ const servidor = Bun.serve({
   },
 });
 
-console.log(`Agente Registro como Proveedor escuchando en http://localhost:${servidor.port}`);
+console.log(`Agente Registro como Proveedor escuchando en http://${HOST}:${servidor.port}`);
 console.log(`Proveedor: ${adaptador.id} (modelo: ${adaptador.modelo})`);
 if (adaptador.id === "guiado") {
   console.log(
     "Sin clave de proveedor en el entorno: se activo el modo determinista. Defina ANTHROPIC_API_KEY o OPENAI_API_KEY para usar el LLM.",
   );
+}
+
+// Cierre ordenado: en un contenedor Coolify el redeploy manda SIGTERM.
+for (const senal of ["SIGINT", "SIGTERM"] as const) {
+  process.on(senal, () => {
+    console.log(`${senal} recibido, cerrando el servidor.`);
+    void servidor.stop(true).then(() => process.exit(0));
+  });
 }

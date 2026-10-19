@@ -4,6 +4,7 @@
  */
 
 import type { AdaptadorLLM, DefinicionHerramienta, LlamadaHerramienta, Mensaje, RespuestaLLM } from "./adapter.ts";
+import { aMensajesAnthropic } from "./mensajes.ts";
 
 interface BloqueAnthropic {
   type: string;
@@ -26,36 +27,7 @@ export class AdaptadorAnthropic implements AdaptadorLLM {
   }
 
   private aMensajes(mensajes: Mensaje[]): unknown[] {
-    const salida: unknown[] = [];
-    for (const mensaje of mensajes) {
-      if (mensaje.rol === "user") {
-        salida.push({ role: "user", content: [{ type: "text", text: mensaje.contenido }] });
-        continue;
-      }
-      if (mensaje.rol === "assistant") {
-        const contenido: unknown[] = [];
-        if (mensaje.contenido.trim() !== "") {
-          contenido.push({ type: "text", text: mensaje.contenido });
-        }
-        for (const llamada of mensaje.llamadas ?? []) {
-          contenido.push({
-            type: "tool_use",
-            id: llamada.id,
-            name: llamada.nombre,
-            input: llamada.argumentos,
-          });
-        }
-        if (contenido.length > 0) {
-          salida.push({ role: "assistant", content: contenido });
-        }
-        continue;
-      }
-      salida.push({
-        role: "user",
-        content: [{ type: "tool_result", tool_use_id: mensaje.id, content: mensaje.contenido }],
-      });
-    }
-    return salida;
+    return aMensajesAnthropic(mensajes);
   }
 
   async responder(mensajes: Mensaje[], herramientas: DefinicionHerramienta[]): Promise<RespuestaLLM> {

@@ -5,6 +5,7 @@
  */
 
 import type { AdaptadorLLM, DefinicionHerramienta, LlamadaHerramienta, Mensaje, RespuestaLLM } from "./adapter.ts";
+import { aMensajesOpenAI } from "./mensajes.ts";
 
 export class AdaptadorOpenAI implements AdaptadorLLM {
   readonly id = "openai";
@@ -20,34 +21,7 @@ export class AdaptadorOpenAI implements AdaptadorLLM {
   }
 
   private aMensajes(mensajes: Mensaje[]): unknown[] {
-    const salida: unknown[] = [{ role: "system", content: this.promptSistema }];
-    for (const mensaje of mensajes) {
-      if (mensaje.rol === "user") {
-        salida.push({ role: "user", content: mensaje.contenido });
-        continue;
-      }
-      if (mensaje.rol === "assistant") {
-        if (mensaje.contenido.trim() !== "") {
-          salida.push({ role: "assistant", content: mensaje.contenido });
-        }
-        for (const llamada of mensaje.llamadas ?? []) {
-          salida.push({
-            role: "assistant",
-            content: "",
-            tool_calls: [
-              {
-                id: llamada.id,
-                type: "function",
-                function: { name: llamada.nombre, arguments: JSON.stringify(llamada.argumentos) },
-              },
-            ],
-          });
-        }
-        continue;
-      }
-      salida.push({ role: "tool", tool_call_id: mensaje.id, content: mensaje.contenido });
-    }
-    return salida;
+    return aMensajesOpenAI(mensajes, this.promptSistema);
   }
 
   async responder(mensajes: Mensaje[], herramientas: DefinicionHerramienta[]): Promise<RespuestaLLM> {

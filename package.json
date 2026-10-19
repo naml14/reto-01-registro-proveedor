@@ -11,6 +11,7 @@
     "test": "bun test",
     "typecheck": "tsc --noEmit",
     "sincronizar": "bun run scripts/sincronizar-modulo.ts",
+    "smoke": "bun run scripts/smoke-test.ts",
     "tunel": "npx --yes untun --port 3000"
   },
   "dependencies": {
