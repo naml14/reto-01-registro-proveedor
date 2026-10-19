@@ -67,14 +67,30 @@ bunx tsc --noEmit   # typecheck estricto, sin `any`
 
 ## 4. Enlace para probar
 
+**Enlace de la defensa (túnel público, activo mientras el servidor siga arriba):**
+
+```
+https://requested-comfort-smart-aaa.trycloudflare.com
+```
+
+Es un *quick tunnel* de Cloudflare sobre `http://localhost:3000`: sin cuenta, sin registro y sin
+interstitial. La URL cambia cada vez que se levanta el túnel, así que **hay que tener el servidor
+corriendo durante la defensa**. Para regenerarlo:
+
+```bash
+# con cloudflared instalado
+cloudflared tunnel --url http://localhost:3000 --no-autoupdate
+# o, sin instalar nada
+npx --yes untun --port 3000
+```
+
 | Opción | Cómo | Nota |
 |---|---|---|
 | Local | `bun run dev` → http://localhost:3000 | Válido para la defensa si no hay despliegue en vivo |
-| Túnel efímero | `bun run tunel` (o `npx untun --port 3000`) | URL pública en segundos, sin cuenta; cambia al reiniciar |
+| Túnel efímero | `cloudflared tunnel --url http://localhost:3000` | URL pública en segundos, sin cuenta; cambia al reiniciar |
 | Deploy | `bun run start` en Render / Railway / Fly / Vercel | URL estable; requiere cuenta y token del proveedor |
 
-El enlace usado en la defensa se anota en el correo de respuesta. Si no hay deploy disponible,
-el PRD §9.3 acepta correrlo en local en la defensa con **-10**.
+Si no hay despliegue disponible, el PRD §9.3 acepta correrlo en local en la defensa con **-10**.
 
 ## 5. Estructura del repositorio
 
