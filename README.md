@@ -222,14 +222,14 @@ bun run scripts/smoke-test.ts https://agente.tudominio.com
 
 ### 4.2 Alternativas
 
-**Enlace actual de la defensa (túnel público):**
+**Enlace actual de la defensa (tunel publico, activo mientras el servidor siga arriba):**
 
 ```
-https://requested-comfort-smart-aaa.trycloudflare.com
+https://replacement-judgment-brandon-became.trycloudflare.com
 ```
 
 Es un *quick tunnel* de Cloudflare sobre `http://localhost:3000`: sin cuenta, sin registro y sin
-interstitial. **La URL cambia cada vez que se levanta el túnel y depende de que tu PC siga
+interstitial. **La URL cambia cada vez que se levanta el tunel y depende de que tu PC siga
 encendida**: sirve como respaldo, pero para la defensa conviene el VPS.
 
 Para regenerarlo:
