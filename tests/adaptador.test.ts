@@ -9,6 +9,7 @@
 import { describe, expect, test } from "bun:test";
 
 import { aMensajesAnthropic, aMensajesOpenAI } from "../src/llm/mensajes.ts";
+import { idDeLlamada } from "../src/llm/adapter.ts";
 import type { Mensaje } from "../src/llm/adapter.ts";
 
 const HISTORIAL: Mensaje[] = [
@@ -23,6 +24,20 @@ const HISTORIAL: Mensaje[] = [
 ];
 
 describe("adaptador Anthropic", () => {
+  test("el id del proveedor se respeta en el emparejado de la herramienta", () => {
+    // Si el id se regenera, el proveedor responde "tool result's tool id
+    // (...) not found" y el ciclo se rompe en la segunda iteracion.
+    expect(idDeLlamada({ nombre: "proveedor_leer_solicitud", argumentos: {}, id: "toolu_abc123" }, 0, 0)).toBe(
+      "toolu_abc123",
+    );
+  });
+
+  test("sin id del proveedor se genera uno local estable", () => {
+    expect(idDeLlamada({ nombre: "proveedor_leer_solicitud", argumentos: {} }, 2, 1)).toBe(
+      "call_2_1_proveedor_leer_solicitud",
+    );
+  });
+
   test("un mensaje de usuario va como bloque de texto", () => {
     const salida = aMensajesAnthropic([HISTORIAL[0]]);
     expect(salida).toEqual([

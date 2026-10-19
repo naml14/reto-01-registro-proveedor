@@ -14,6 +14,7 @@ import path from "node:path";
 
 import { pideConfirmacion, resumirResultado } from "./domain/reglas.ts";
 import type { DefinicionHerramienta, LlamadaRegistrada, Mensaje } from "./llm/adapter.ts";
+import { idDeLlamada } from "./llm/adapter.ts";
 import { crearAdaptador } from "./llm/fabrica.ts";
 import { registroHerramientas } from "./tools/proveedor.ts";
 
@@ -114,6 +115,7 @@ async function manejarChat(cuerpo: { sessionId?: string; message?: string }): Pr
   const ctx = { directory: RAIZ, sessionId };
   let reply = "";
   let needsConfirmation = false;
+  let ultimoBloques: unknown[] | undefined;
 
   for (let iteracion = 0; iteracion < MAX_ITERACIONES; iteracion += 1) {
     let respuesta;
@@ -128,6 +130,7 @@ async function manejarChat(cuerpo: { sessionId?: string; message?: string }): Pr
 
     if (respuesta.llamadas.length === 0) {
       reply = respuesta.texto;
+      ultimoBloques = respuesta.bloquesCrudos;
       break;
     }
 
@@ -135,7 +138,9 @@ async function manejarChat(cuerpo: { sessionId?: string; message?: string }): Pr
     const resultados: { nombre: string; id: string; contenido: string }[] = [];
 
     for (const [indice, llamada] of respuesta.llamadas.entries()) {
-      const id = `call_${iteracion}_${indice}_${llamada.nombre}`;
+      // El id del proveedor se respeta: el resultado de la herramienta debe
+      // llegar con ese mismo id o el proveedor no lo asocia con su tool_use.
+      const id = idDeLlamada(llamada, iteracion, indice);
       registradas.push({ nombre: llamada.nombre, argumentos: llamada.argumentos, id });
 
       const herramienta = herramientas.find((item) => item.nombre === llamada.nombre);
@@ -181,6 +186,7 @@ async function manejarChat(cuerpo: { sessionId?: string; message?: string }): Pr
       llamadas: registradas,
       bloquesCrudos: respuesta.bloquesCrudos,
     });
+    ultimoBloques = respuesta.bloquesCrudos;
     for (const resultado of resultados) {
       sesion.mensajes.push({
         rol: "tool",
@@ -195,7 +201,9 @@ async function manejarChat(cuerpo: { sessionId?: string; message?: string }): Pr
     reply = `Alcance el tope de ${MAX_ITERACIONES} iteraciones del turno. Esto es lo que hay hasta ahora: ${toolCalls.length} llamadas a herramientas.`;
   }
 
-  sesion.mensajes.push({ rol: "assistant", contenido: reply });
+  // Los bloques crudos del ultimo turno (por ejemplo "thinking") se reenvian
+  // tal cual: los modelos con razonamiento los exigen sin modificar.
+  sesion.mensajes.push({ rol: "assistant", contenido: reply, bloquesCrudos: ultimoBloques });
   sesion.toolCalls.push(...toolCalls);
   sesion.tokensEstimados = estimarTokens(sesion.mensajes);
 

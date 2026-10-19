@@ -61,6 +61,7 @@ export class AdaptadorOpenAI implements AdaptadorLLM {
     const llamadas: LlamadaHerramienta[] = [];
 
     for (const llamada of (mensaje?.tool_calls ?? []) as {
+      id?: string;
       function?: { name?: string; arguments?: string };
     }[]) {
       const nombre = llamada.function?.name;
@@ -74,7 +75,11 @@ export class AdaptadorOpenAI implements AdaptadorLLM {
       } catch {
         argumentos = {};
       }
-      llamadas.push({ nombre, argumentos });
+      llamadas.push({
+        nombre,
+        argumentos,
+        id: typeof llamada.id === "string" ? llamada.id : undefined,
+      });
     }
 
     return { texto, llamadas };

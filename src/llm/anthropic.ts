@@ -118,6 +118,9 @@ export class AdaptadorAnthropic implements AdaptadorLLM {
             entrada !== null && typeof entrada === "object"
               ? (entrada as Record<string, unknown>)
               : {},
+          // El id del proveedor se reenvia tal cual: es lo que permite
+          // emparejar el tool_result con su tool_use.
+          id: typeof bloque.id === "string" ? bloque.id : undefined,
         });
       }
     }

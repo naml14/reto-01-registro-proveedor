@@ -3,6 +3,16 @@
  * Cambiar de proveedor no debe tocar el ciclo del agente (PRD 6.1).
  */
 
+/**
+ * Id de una llamada a herramienta. Se usa el del proveedor cuando lo da
+ * (obligatorio para que el resultado de la herramienta pueda associarse);
+ * si no, se genera uno local estable.
+ */
+export function idDeLlamada(llamada: LlamadaHerramienta, iteracion: number, indice: number): string {
+  if (typeof llamada.id === "string" && llamada.id !== "") return llamada.id;
+  return `call_${iteracion}_${indice}_${llamada.nombre}`;
+}
+
 export interface DefinicionHerramienta {
   /** Nombre visible para el modelo: proveedor_leer_solicitud, etc. */
   nombre: string;
@@ -14,6 +24,12 @@ export interface DefinicionHerramienta {
 export interface LlamadaHerramienta {
   nombre: string;
   argumentos: Record<string, unknown>;
+  /**
+   * Id que asigno el proveedor a la llamada (tool_use / tool_call_id).
+   * Es obligatorio reenviarlo tal cual en el resultado de la herramienta:
+   * MiniMax responde "tool result's tool id(...) not found" si no coincide.
+   */
+  id?: string;
 }
 
 export interface RespuestaLLM {
