@@ -22,10 +22,15 @@ import type {
 import { evaluarListoParaFirma, evaluarSoportes, mapearCampos as mapearCamposDominio } from "../domain/reglas.ts";
 import type { GeneradorFormularios, RepositorioProveedor } from "./ports.ts";
 
-/** El formato portal no se implementa (P2): se dejan los valores listos para copiar. */
+/** Error de dominio que incluye la ruta de los valores preparados para un formato no implementado. */
 export class ErrorFormatoNoSoportado extends Error {
+  /** Ruta del artefacto alternativo preparado antes de emitir este error. */
   readonly ruta: string;
 
+  /**
+   * @param mensaje Mensaje legible que explica por qué no se generó el formato.
+   * @param ruta Ruta del artefacto alternativo generado, si existe.
+   */
   constructor(mensaje: string, ruta: string) {
     super(mensaje);
     this.name = "ErrorFormatoNoSoportado";
@@ -33,39 +38,67 @@ export class ErrorFormatoNoSoportado extends Error {
   }
 }
 
+/** Opciones que ajustan la evaluación del servicio sin cambiar sus reglas de negocio. */
 export interface OpcionesServicio {
   /** Fecha de ejecucion para evaluar vigencias. Vacio = fecha de cada caso (determinista). */
   fechaEjecucion?: string;
 }
 
+/** Ubicación y formato del formulario generado. */
 export interface ResultadoFormulario {
+  /** Ruta relativa del formulario generado. */
   ruta: string;
+  /** Formato del archivo generado. */
   formato: Formato;
 }
 
+/** Ubicación y estado de preparación del paquete para firma. */
 export interface ResultadoPaquete {
+  /** Ruta relativa del directorio del paquete. */
   ruta: string;
+  /** Estado derivado de soportes presentes, ausentes o vencidos. */
   listo_para_firma: boolean;
+  /** Detalle de soportes, campos y bloqueos. */
   checklist: ChecklistPaquete;
 }
 
+/**
+ * Orquesta los casos de uso de registro de proveedor mediante puertos de repositorio y generación.
+ * Mantiene las reglas de dominio fuera del servidor y de los adaptadores de LLM.
+ */
 export class ServicioRegistroProveedor {
+  /**
+   * @param repo Puerto para leer casos y escribir los artefactos.
+   * @param generadores Adaptadores que producen PDF y Excel.
+   * @param opciones Configuración opcional, incluida la fecha de referencia global.
+   */
   constructor(
     private readonly repo: RepositorioProveedor,
     private readonly generadores: GeneradorFormularios,
     private readonly opciones: OpcionesServicio = {},
   ) {}
 
+  /**
+   * Elige la fecha global configurada o, en su ausencia, la fecha del caso.
+   * @param fechaCaso Fecha declarada en la solicitud.
+   * @returns Fecha usada para evaluar vigencias.
+   */
   private fechaReferencia(fechaCaso: string): string {
     const global = this.opciones.fechaEjecucion?.trim();
     return global !== undefined && global !== "" ? global : fechaCaso;
   }
 
+  /** @returns Identificadores de los casos disponibles en el repositorio. */
   async listarCasos(): Promise<string[]> {
     return this.repo.listarCasos();
   }
 
-  /** HU-1: que pide el cliente, en que pais y en que formato. */
+  /**
+   * HU-1: obtiene qué pide el cliente, en qué país y en qué formato, junto con sus soportes.
+   * @param caso Identificador del directorio de fixtures.
+   * @returns Vista de solicitud consumida por el agente.
+   * @throws Error si no se puede leer la solicitud, la plantilla o los soportes exigidos.
+   */
   async leerSolicitud(caso: string): Promise<DatosSolicitud> {
     const solicitud = await this.repo.leerSolicitud(caso);
     const campos = await this.repo.leerCampos(caso, solicitud.formato);
@@ -79,7 +112,13 @@ export class ServicioRegistroProveedor {
     };
   }
 
-  /** HU-2: cruce campo a campo contra el maestro. */
+  /**
+   * HU-2: cruza etiquetas con el maestro usando el glosario y las reglas del país.
+   * @param caso Identificador del directorio de fixtures.
+   * @param campos Etiquetas concretas; si se omiten o están vacías, usa todos los campos de la plantilla.
+   * @returns Campos clasificados como llenos, faltantes o pendientes de confirmación.
+   * @throws Error si no puede leer los datos y catálogos requeridos.
+   */
   async mapearCampos(caso: string, campos?: string[]): Promise<ResultadoMapeo> {
     const solicitud = await this.repo.leerSolicitud(caso);
     const etiquetas =
@@ -91,7 +130,13 @@ export class ServicioRegistroProveedor {
     return mapearCamposDominio({ etiquetas, maestro, glosario, pais: solicitud.pais });
   }
 
-  /** HU-3: genera el formulario en el formato pedido. */
+  /**
+   * HU-3: genera el formulario solicitado o prepara valores copiables para el formato portal.
+   * @param caso Identificador del directorio de fixtures.
+   * @returns Ruta y formato del archivo generado.
+   * @throws ErrorFormatoNoSoportado Para portal, después de escribir el archivo de valores copiables.
+   * @throws Error Si falla la lectura de datos o la generación del archivo.
+   */
   async generarFormulario(caso: string): Promise<ResultadoFormulario> {
     const solicitud = await this.repo.leerSolicitud(caso);
     const mapeo = await this.mapearCampos(caso);
@@ -122,7 +167,12 @@ export class ServicioRegistroProveedor {
     return { ruta, formato: "pdf" };
   }
 
-  /** HU-4: paquete con formulario, soportes, checklist y borrador de correo. */
+  /**
+   * HU-4: arma el paquete con formulario, soportes disponibles, checklist y borrador de correo.
+   * @param caso Identificador del directorio de fixtures.
+   * @returns Ruta del paquete y checklist con su estado para firma.
+   * @throws Error si una lectura o escritura del paquete falla; los errores de formato portal se conservan como artefacto alternativo.
+   */
   async armarPaquete(caso: string): Promise<ResultadoPaquete> {
     const solicitud = await this.repo.leerSolicitud(caso);
     const indice = await this.repo.leerIndiceSoportes();
@@ -184,7 +234,13 @@ export class ServicioRegistroProveedor {
     };
   }
 
-  /** RN4: sin confirmacion explicita no hay envio. */
+  /**
+   * RN4: escribe una constancia local de envío simulado; nunca envía correo real.
+   * @param caso Identificador del directorio de fixtures.
+   * @param confirmado Debe ser `true` tras una confirmación humana explícita.
+   * @returns Ruta del archivo de simulación.
+   * @throws Error si no hay confirmación o si no se puede escribir el archivo.
+   */
   async simularEnvio(caso: string, confirmado: boolean): Promise<{ ruta: string }> {
     if (!confirmado) {
       throw new Error("requiere confirmacion explicita");
@@ -206,6 +262,11 @@ export class ServicioRegistroProveedor {
     return { ruta };
   }
 
+  /**
+   * Selecciona valores disponibles para rellenar el formulario.
+   * @param mapeo Resultado del cruce de campos.
+   * @returns Valores de campos llenos o pendientes de confirmación, indexados por etiqueta.
+   */
   private valoresPorEtiqueta(mapeo: ResultadoMapeo): Map<string, string> {
     const valores = new Map<string, string>();
     for (const campo of [...mapeo.llenos, ...mapeo.requiere_confirmacion]) {
@@ -216,6 +277,12 @@ export class ServicioRegistroProveedor {
     return valores;
   }
 
+  /**
+   * Escribe una lista de valores para copiar manualmente en el portal del cliente.
+   * @param caso Identificador del caso.
+   * @param ruta Destino relativo del archivo Markdown.
+   * @param mapeo Resultado del cruce de campos.
+   */
   private async escribirValoresPortal(
     caso: string,
     ruta: string,
@@ -240,6 +307,19 @@ export class ServicioRegistroProveedor {
     await this.repo.escribir(ruta, lineas.join("\n"));
   }
 
+  /**
+   * Renderiza el checklist que explica campos, soportes y bloqueos del paquete.
+   * @param caso Identificador del caso.
+   * @param solicitud Datos visibles de la solicitud.
+   * @param fechaReferencia Fecha usada para evaluar vigencias.
+   * @param soportes Evaluación de soportes exigidos.
+   * @param mapeo Clasificación de campos solicitados.
+   * @param bloqueos Motivos que impiden pasar a firma.
+   * @param listoParaFirma Estado calculado según los soportes.
+   * @param copiados Archivos de soporte incluidos en el paquete.
+   * @param rutaFormulario Ruta del formulario o del archivo alternativo.
+   * @returns Contenido Markdown del checklist.
+   */
   private armarChecklist(
     caso: string,
     solicitud: { cliente: string; pais: string; formato: Formato },
@@ -315,6 +395,15 @@ export class ServicioRegistroProveedor {
     return lineas.join("\n");
   }
 
+  /**
+   * Renderiza el correo pendiente de envío para revisión y envío por una persona.
+   * @param solicitud Datos del cliente, destinatario y asunto.
+   * @param soportes Estado de los soportes requeridos.
+   * @param rutaFormulario Ruta del formulario preparado.
+   * @param copiados Soportes disponibles incluidos en el paquete.
+   * @param fechaReferencia Fecha del caso o fecha global configurada.
+   * @returns Borrador en Markdown; no realiza ningún envío.
+   */
   private armarBorradorCorreo(
     solicitud: { cliente: string; de: string; asunto: string; formato: Formato },
     soportes: SoporteEvaluado[],

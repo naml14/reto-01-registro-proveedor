@@ -12,6 +12,7 @@ import path from "node:path";
 
 import type { AdaptadorLLM, DefinicionHerramienta, Mensaje, RespuestaLLM } from "./adapter.ts";
 
+/** Estructura parcial de resultados de herramienta consumidos por el modo guiado. */
 interface DatosHerramienta {
   [clave: string]: unknown;
 }
@@ -19,6 +20,11 @@ interface DatosHerramienta {
 const AFIRMATIVO = /^\s*(si|sí|yes|ok|okay|dale|de acuerdo|confirmo|confirmá|adelante|hazlo|listo)\b/i;
 const ORDEN_ENVIO = /(env[ií]a|enviar|simul\w*|despach\w*)/i;
 
+/**
+ * Lista los directorios de fixtures que el modo determinista puede procesar.
+ * @param raiz Raíz del proyecto.
+ * @returns Casos ordenados o una lista vacía si no se puede leer el directorio.
+ */
 function listarCasos(raiz: string): string[] {
   try {
     return readdirSync(path.join(raiz, "fixtures", "reto-01", "casos"), { withFileTypes: true })
@@ -30,15 +36,24 @@ function listarCasos(raiz: string): string[] {
   }
 }
 
+/**
+ * Adaptador local determinista que recorre las herramientas sin invocar un proveedor LLM.
+ * Requiere confirmación en un turno posterior antes de simular el envío.
+ */
 export class AdaptadorGuiado implements AdaptadorLLM {
+  /** Identificador que reporta el backend para el modo sin proveedor externo. */
   readonly id = "guiado";
+  /** Etiqueta visible para el modo local determinista. */
   readonly modelo = "determinista";
+  /** Casos descubiertos al construir el adaptador. */
   private readonly casos: string[];
 
+  /** @param raiz Raíz del proyecto donde se encuentran los casos de fixtures. */
   constructor(private readonly raiz: string) {
     this.casos = listarCasos(raiz);
   }
 
+  /** Extrae del historial los resultados JSON exitosos de las herramientas. */
   private resultados(mensajes: Mensaje[]): Map<string, DatosHerramienta> {
     const mapa = new Map<string, DatosHerramienta>();
     for (const mensaje of mensajes) {
@@ -55,6 +70,7 @@ export class AdaptadorGuiado implements AdaptadorLLM {
     return mapa;
   }
 
+  /** Busca en el texto el primer identificador de caso disponible. */
   private detectarCaso(texto: string): string | null {
     const normalizado = texto.toLowerCase();
     for (const caso of this.casos) {
@@ -64,6 +80,7 @@ export class AdaptadorGuiado implements AdaptadorLLM {
   }
 
   /** Recupera el caso ya trabajado mirando la llamada a leer_solicitud del historial. */
+  /** Recupera del historial el caso de la última llamada a `proveedor_leer_solicitud`. */
   private casoDeResultados(mensajes: Mensaje[]): string | null {
     for (let indice = mensajes.length - 1; indice >= 0; indice -= 1) {
       const mensaje = mensajes[indice];
@@ -78,7 +95,7 @@ export class AdaptadorGuiado implements AdaptadorLLM {
     return null;
   }
 
-  /** El ultimo mensaje del asistente con contenido: era una pregunta de confirmacion? */
+  /** Comprueba si el último mensaje del asistente con contenido pidió confirmación explícita. */
   private pideConfirmacionPrevia(mensajes: Mensaje[]): boolean {
     for (let indice = mensajes.length - 1; indice >= 0; indice -= 1) {
       const mensaje = mensajes[indice];
@@ -89,6 +106,14 @@ export class AdaptadorGuiado implements AdaptadorLLM {
     return false;
   }
 
+  /**
+   * Produce la siguiente respuesta o llamada siguiendo el flujo local leer→mapear→generar→armar.
+   * La simulación de envío solo se solicita si el usuario responde afirmativamente tras una pregunta previa.
+   *
+   * @param mensajes Historial normalizado de la sesión.
+   * @param _herramientas Catálogo recibido por compatibilidad con `AdaptadorLLM`; el modo guiado no lo consulta.
+   * @returns Texto final o la llamada de herramienta que corresponde al siguiente paso.
+   */
   async responder(mensajes: Mensaje[], _herramientas: DefinicionHerramienta[]): Promise<RespuestaLLM> {
     const ultimoUsuario = [...mensajes].reverse().find((mensaje) => mensaje.rol === "user");
     const textoUsuario = ultimoUsuario?.contenido ?? "";
@@ -165,6 +190,13 @@ export class AdaptadorGuiado implements AdaptadorLLM {
     return { texto: this.resumen(caso, solicitud, resultados), llamadas: [] };
   }
 
+  /**
+   * Resume los resultados de las herramientas con campos, soportes y estado de firma.
+   * @param caso Identificador procesado.
+   * @param solicitud Resultado de lectura de la solicitud.
+   * @param resultados Resultados exitosos indexados por nombre de herramienta.
+   * @returns Resumen de texto que termina solicitando confirmación para simular envío.
+   */
   private resumen(
     caso: string,
     solicitud: DatosHerramienta,

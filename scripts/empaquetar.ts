@@ -15,6 +15,7 @@ const DESTINO = path.resolve(RAIZ, "..", NOMBRE);
 
 const EXCLUIDOS = new Set(["node_modules", "out", ".env", ".DS_Store"]);
 
+/** Decide si una ruta debe omitirse del archivo de entrega. */
 function excluido(relativo: string): boolean {
   const partes = relativo.split("/");
   if (partes.some((parte) => EXCLUIDOS.has(parte))) return true;
@@ -24,6 +25,12 @@ function excluido(relativo: string): boolean {
   return false;
 }
 
+/**
+ * Recorre una carpeta y reúne archivos no excluidos usando rutas relativas con `/`.
+ * @param base Raíz del proyecto que se empaqueta.
+ * @param carpeta Subdirectorio relativo que se inspecciona; vacío para la raíz.
+ * @returns Rutas relativas de archivos incluidos.
+ */
 async function recolectar(base: string, carpeta: string): Promise<string[]> {
   const encontrados: string[] = [];
   const entradas = await readdir(path.join(base, carpeta), { withFileTypes: true });

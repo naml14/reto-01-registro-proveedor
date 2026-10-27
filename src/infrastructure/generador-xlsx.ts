@@ -8,11 +8,17 @@ import ExcelJS from "exceljs";
 
 import type { CeldaPlantilla } from "../application/ports.ts";
 
+/** Tipo de coordenada compartido por el puerto y el generador Excel. */
 export type { CeldaPlantilla };
 
 /**
  * Escribe cada etiqueta y su valor exactamente en la hoja y celda indicadas.
- * Un campo sin fuente queda vacio: el agente nunca inventa valores.
+ * Un campo sin fuente queda vacío: el agente nunca inventa valores.
+ *
+ * @param destino Ruta de salida del libro.
+ * @param plantilla Coordenadas de hoja y celdas para cada etiqueta solicitada.
+ * @param valoresPorEtiqueta Valores disponibles indexados por etiqueta.
+ * @throws Error si ExcelJS no puede crear o escribir el libro.
  */
 export async function generarXlsx(
   destino: string,

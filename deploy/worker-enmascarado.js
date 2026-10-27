@@ -23,9 +23,18 @@
  * "https://agente.electrondevnaml.dev".
  */
 
+/** URL del backend al que se reenvían las solicitudes del Worker. */
 const ORIGEN = "http://193.34.69.237:3000";
 
 export default {
+  /**
+   * Reenvía método, ruta, query, cabeceras y cuerpo al origen y devuelve su respuesta.
+   * Ante un error de conexión responde con HTTP 502 y un sobre JSON.
+   * @param {Request} request Solicitud recibida por Cloudflare.
+   * @param {unknown} env Entorno de ejecución del Worker, no utilizado por esta implementación.
+   * @param {unknown} ctx Contexto de ejecución del Worker, no utilizado por esta implementación.
+   * @returns {Promise<Response>} Respuesta del origen o error JSON 502.
+   */
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const destino = `${ORIGEN}${url.pathname}${url.search}`;

@@ -20,6 +20,7 @@
 const URL_BASE = (process.argv[2] ?? "http://localhost:3000").replace(/\/$/, "");
 const CASO = "ec-corp-andina";
 
+/** Resultado de una comprobación ejecutada contra la instancia objetivo. */
 interface Resultado {
   nombre: string;
   ok: boolean;
@@ -29,15 +30,24 @@ interface Resultado {
 const resultados: Resultado[] = [];
 let modo = "desconocido";
 
+/** Añade y muestra el resultado de una comprobación del smoke test. */
 function registrar(nombre: string, ok: boolean, detalle: string): void {
   resultados.push({ nombre, ok, detalle });
   console.log(`[${ok ? "OK  " : "FALLA"}] ${nombre} - ${detalle}`);
 }
 
+/** Emite un dato informativo que no cuenta como comprobación aprobada o fallida. */
 function informar(nombre: string, detalle: string): void {
   console.log(`[INFO ] ${nombre} - ${detalle}`);
 }
 
+/**
+ * Envía una petición a la instancia configurada con un timeout de 45 segundos.
+ * @param ruta Ruta HTTP relativa a `URL_BASE`.
+ * @param opciones Método, cabeceras y cuerpo opcionales.
+ * @returns Respuesta HTTP recibida.
+ * @throws Error si la solicitud falla o agota el timeout.
+ */
 async function peticion(ruta: string, opciones: RequestInit = {}): Promise<Response> {
   return fetch(`${URL_BASE}${ruta}`, { ...opciones, signal: AbortSignal.timeout(45_000) });
 }
@@ -79,6 +89,7 @@ for (const recurso of ["/app.js", "/styles.css"]) {
   }
 }
 
+/** Campos de la respuesta del endpoint de chat que verifica el smoke test. */
 interface RespuestaChat {
   reply?: string;
   toolCalls?: { nombre: string; argumentos?: { confirmado?: boolean } }[];

@@ -17,12 +17,15 @@ import { GeneradorFormulariosAdapter } from "../infrastructure/generadores.ts";
 import { RepositorioFS } from "../infrastructure/repositorio-fs.ts";
 import { registrarLog } from "../infrastructure/registro-log.ts";
 
+/** Contexto de proyecto y sesión que acompaña cada ejecución de herramienta. */
 export interface ContextoHerramienta {
   /** Raiz del proyecto. Las rutas se resuelven siempre desde aqui, nunca absolutas. */
   directory: string;
+  /** Identificador de la sesión que originó la llamada. */
   sessionId: string;
 }
 
+/** Construye los adaptadores locales usados por el caso de uso de una herramienta. */
 function crearServicio(ctx: ContextoHerramienta): ServicioRegistroProveedor {
   return new ServicioRegistroProveedor(
     new RepositorioFS(ctx.directory),
@@ -31,10 +34,19 @@ function crearServicio(ctx: ContextoHerramienta): ServicioRegistroProveedor {
   );
 }
 
+/** Serializa un resultado y lo reduce al límite de longitud usado en el log. */
 function resumir(data: unknown): string {
   return resumirResultado(JSON.stringify(data), 200);
 }
 
+/**
+ * Ejecuta una acción, la registra y devuelve un sobre JSON sin propagar errores.
+ * @param nombre Nombre interno para el log.
+ * @param ctx Raíz del proyecto y sesión que ejecuta la acción.
+ * @param caso Caso asociado; puede omitirse en operaciones globales.
+ * @param accion Operación de dominio que se va a ejecutar.
+ * @returns JSON con `ok` y `data` o con `ok: false` y el mensaje de error.
+ */
 async function ejecutarHerramienta(
   nombre: string,
   ctx: ContextoHerramienta,
@@ -67,6 +79,7 @@ const argsLeerSolicitud = {
     ),
 };
 
+/** Herramienta que obtiene solicitud, formato, campos y soportes exigidos de un caso. */
 export const leer_solicitud = {
   description:
     "Lee la solicitud de un caso (correo del cliente) y devuelve el pais, el cliente, el formato de salida pedido, la lista de campos solicitados y los soportes exigidos.",
@@ -94,6 +107,7 @@ const argsMapearCampos = {
     ),
 };
 
+/** Herramienta que contrasta las etiquetas solicitadas con el maestro sin inventar valores. */
 export const mapear_campos = {
   description:
     "Cruza cada campo solicitado con el repositorio maestro y lo clasifica en lleno (con la ruta del dato), faltante (no existe en el maestro) o requiere_confirmacion. No inventa valores.",
@@ -126,6 +140,7 @@ const argsGenerarFormulario = {
     ),
 };
 
+/** Herramienta que genera el formulario o prepara valores copiables para formato portal. */
 export const generar_formulario = {
   description:
     "Genera el formulario del caso en el formato pedido: Excel (.xlsx) para formato xlsx, PDF para formato pdf, o el archivo de valores copiables para formato portal (no soportado).",
@@ -147,6 +162,7 @@ const argsArmarPaquete = {
   caso: z.string().describe("Nombre de la carpeta del caso en fixtures/reto-01/casos/"),
 };
 
+/** Herramienta que prepara los archivos, checklist y borrador de correo para firma humana. */
 export const armar_paquete = {
   description:
     "Arma el paquete para firma del caso: copia el formulario, copia los soportes exigidos que existen, escribe checklist.md con soportes presentes/ausentes/vencidos y borrador-correo.md, y dice si queda listo_para_firma.",
@@ -173,6 +189,7 @@ const argsSimularEnvio = {
     ),
 };
 
+/** Herramienta que registra localmente una simulación, solo tras confirmación explícita. */
 export const simular_envio = {
   description:
     "Simula el envio del paquete escribiendo ENVIO-SIMULADO.md. Solo se ejecuta con confirmacion explicita de la persona; el agente nunca envia correo real.",
@@ -190,6 +207,7 @@ export const simular_envio = {
 // --------------------------------------------------------------------------
 // Registro: de aqui sale el nombre visible `<archivo>_<export>` y el JSON Schema
 // --------------------------------------------------------------------------
+/** Herramientas públicas del agente, indexadas por el nombre que ve el modelo. */
 export const HERRAMIENTAS_PROVEEDOR = {
   leer_solicitud,
   mapear_campos,
@@ -198,27 +216,42 @@ export const HERRAMIENTAS_PROVEEDOR = {
   simular_envio,
 } as const;
 
+/** Nombres de exportación admitidos en el registro de herramientas. */
 export type ExportProveedor = keyof typeof HERRAMIENTAS_PROVEEDOR;
 
+/** Prefijo que se antepone al nombre de cada herramienta expuesta al proveedor. */
 export const PREFIJO_HERRAMIENTA = "proveedor";
 
+/** Forma interna común de las definiciones Zod antes de su registro. */
 interface HerramientaTipada {
   description: string;
   args: z.ZodRawShape;
   execute(args: Record<string, unknown>, ctx: ContextoHerramienta): Promise<string>;
 }
 
+/** Definición lista para validar argumentos y exponer una herramienta a un proveedor LLM. */
 export interface HerramientaRegistrada {
+  /** Nombre prefijado que se envía al modelo. */
   nombre: string;
+  /** Descripción que guía la selección de la herramienta por el modelo. */
   descripcion: string;
+  /** Esquema Zod de sus argumentos. */
   args: z.ZodRawShape;
-  /** Objeto zod listo para validar los argumentos que envia el modelo. */
+  /** Objeto Zod listo para validar los argumentos enviados por el modelo. */
   objeto: z.ZodObject<z.ZodRawShape>;
+  /** Esquema JSON derivado para el proveedor LLM. */
   jsonSchema: Record<string, unknown>;
+  /** Ejecuta la herramienta y devuelve su resultado serializado como JSON. */
   execute(args: Record<string, unknown>, ctx: ContextoHerramienta): Promise<string>;
 }
 
-/** Convierte los esquemas zod de los argumentos en JSON Schema para el proveedor LLM. */
+/**
+ * Convierte el esquema Zod de argumentos al JSON Schema que consume el proveedor LLM.
+ * Si Zod no puede convertirlo, devuelve un esquema de objeto vacío sin propiedades adicionales.
+ *
+ * @param forma Forma Zod de los argumentos.
+ * @returns JSON Schema compatible con el proveedor.
+ */
 export function esquemaJson(forma: z.ZodRawShape): Record<string, unknown> {
   try {
     return z.toJSONSchema(z.object(forma), { io: "input" }) as Record<string, unknown>;
@@ -227,7 +260,10 @@ export function esquemaJson(forma: z.ZodRawShape): Record<string, unknown> {
   }
 }
 
-/** Registro de herramientas con su nombre visible para el modelo. */
+/**
+ * Registra las herramientas con su nombre visible, validador Zod y JSON Schema.
+ * @returns Definiciones que consume el servidor y envía al modelo.
+ */
 export function registroHerramientas(): HerramientaRegistrada[] {
   return (Object.keys(HERRAMIENTAS_PROVEEDOR) as ExportProveedor[]).map((clave) => {
     const herramienta = HERRAMIENTAS_PROVEEDOR[clave] as unknown as HerramientaTipada;

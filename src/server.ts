@@ -35,23 +35,39 @@ const definiciones: DefinicionHerramienta[] = herramientas.map((herramienta) => 
   esquema: herramienta.jsonSchema,
 }));
 
+/** Proyección de una llamada de herramienta que se devuelve al navegador. */
 interface ToolCallVisible {
+  /** Nombre visible de la herramienta ejecutada. */
   nombre: string;
+  /** Argumentos originales recibidos del modelo. */
   argumentos: Record<string, unknown>;
+  /** Resultado resumido para el navegador. */
   resultado: string;
+  /** Indica si el sobre devuelto señala éxito. */
   ok: boolean;
 }
 
+/** Historial y contadores mantenidos en memoria para una sesión de chat. */
 interface Sesion {
+  /** Identificador de sesión enviado al cliente. */
   id: string;
+  /** Historial normalizado enviado y recibido por el adaptador. */
   mensajes: Mensaje[];
+  /** Llamadas de herramienta acumuladas para la consulta del historial. */
   toolCalls: ToolCallVisible[];
+  /** Estimación acumulada usada para aplicar el límite de sesión. */
   tokensEstimados: number;
+  /** Marca temporal ISO de creación. */
   creada: string;
 }
 
 const sesiones = new Map<string, Sesion>();
 
+/**
+ * Recupera la sesión existente o crea una sesión vacía en memoria.
+ * @param id Identificador proporcionado por el cliente o generado para el turno.
+ * @returns Estado mutable de la sesión.
+ */
 function obtenerSesion(id: string): Sesion {
   const existente = sesiones.get(id);
   if (existente !== undefined) return existente;
@@ -66,6 +82,7 @@ function obtenerSesion(id: string): Sesion {
   return sesion;
 }
 
+/** Estima tokens como un cuarto del total de caracteres del historial. */
 function estimarTokens(mensajes: Mensaje[]): number {
   let caracteres = 0;
   for (const mensaje of mensajes) {
@@ -74,6 +91,7 @@ function estimarTokens(mensajes: Mensaje[]): number {
   return Math.ceil(caracteres / 4);
 }
 
+/** Construye las cabeceras CORS usadas por las respuestas de la API. */
 function cabecerasCors(): Record<string, string> {
   return {
     "access-control-allow-origin": "*",
@@ -82,6 +100,12 @@ function cabecerasCors(): Record<string, string> {
   };
 }
 
+/**
+ * Procesa un mensaje, ejecuta el ciclo de modelo y herramientas y actualiza la sesión.
+ * Los errores de proveedor se convierten en una respuesta legible sin descartar el historial.
+ * @param cuerpo Cuerpo JSON recibido en `POST /api/chat`.
+ * @returns Respuesta JSON con texto, llamadas visibles y estado de confirmación.
+ */
 async function manejarChat(cuerpo: { sessionId?: string; message?: string }): Promise<Response> {
   const mensaje = (cuerpo.message ?? "").trim();
   if (mensaje === "") {
@@ -217,6 +241,7 @@ async function manejarChat(cuerpo: { sessionId?: string; message?: string }): Pr
   );
 }
 
+/** Rutas públicas de recursos estáticos servidos por el backend. */
 const ESTATICOS: Record<string, { archivo: string; tipo: string }> = {
   "/": { archivo: "web/index.html", tipo: "text/html; charset=utf-8" },
   "/index.html": { archivo: "web/index.html", tipo: "text/html; charset=utf-8" },
@@ -224,9 +249,15 @@ const ESTATICOS: Record<string, { archivo: string; tipo: string }> = {
   "/styles.css": { archivo: "web/styles.css", tipo: "text/css; charset=utf-8" },
 };
 
+/** Servidor HTTP que expone salud, chat, historial en memoria y recursos estáticos. */
 const servidor = Bun.serve({
   hostname: HOST,
   port: PUERTO,
+  /**
+   * Enruta una solicitud HTTP a la API o a un recurso estático.
+   * @param peticion Solicitud entrante de Bun.
+   * @returns Respuesta HTTP; rutas desconocidas y recursos ausentes devuelven 404.
+   */
   async fetch(peticion: Request): Promise<Response> {
     const url = new URL(peticion.url);
     const ruta = url.pathname;

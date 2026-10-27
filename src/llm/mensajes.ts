@@ -7,7 +7,12 @@
 
 import type { Mensaje } from "./adapter.ts";
 
-/** Formato Messages API de Anthropic. */
+/**
+ * Convierte el historial neutral al formato de Messages API de Anthropic.
+ * Conserva los bloques originales del asistente cuando están disponibles, incluidos los de razonamiento.
+ * @param mensajes Historial neutral de usuario, asistente y herramientas.
+ * @returns Mensajes con `role` y `content` según el protocolo de Anthropic.
+ */
 export function aMensajesAnthropic(mensajes: Mensaje[]): unknown[] {
   const salida: unknown[] = [];
 
@@ -60,7 +65,12 @@ export function aMensajesAnthropic(mensajes: Mensaje[]): unknown[] {
   return salida;
 }
 
-/** Formato Chat Completions de OpenAI y compatibles. */
+/**
+ * Convierte el historial neutral al formato Chat Completions de OpenAI y compatibles.
+ * @param mensajes Historial neutral de usuario, asistente y herramientas.
+ * @param promptSistema Instrucciones que se anteponen como mensaje de sistema.
+ * @returns Mensajes compatibles con el endpoint `/chat/completions`.
+ */
 export function aMensajesOpenAI(mensajes: Mensaje[], promptSistema: string): unknown[] {
   const salida: unknown[] = [{ role: "system", content: promptSistema }];
 

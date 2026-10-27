@@ -7,10 +7,19 @@
 import type { AdaptadorLLM, DefinicionHerramienta, LlamadaHerramienta, Mensaje, RespuestaLLM } from "./adapter.ts";
 import { aMensajesOpenAI } from "./mensajes.ts";
 
+/** Adapta Chat Completions de OpenAI y proveedores compatibles al contrato interno del agente. */
 export class AdaptadorOpenAI implements AdaptadorLLM {
+  /** Identificador del protocolo usado por el adaptador. */
   readonly id = "openai";
+  /** Modelo seleccionado para las solicitudes. */
   readonly modelo: string;
 
+  /**
+   * @param clave Secreto Bearer usado en las solicitudes; nunca debe registrarse.
+   * @param modelo Identificador del modelo solicitado.
+   * @param promptSistema Instrucciones del agente.
+   * @param urlBase URL base que precede a `/chat/completions`.
+   */
   constructor(
     private readonly clave: string,
     modelo: string,
@@ -20,10 +29,18 @@ export class AdaptadorOpenAI implements AdaptadorLLM {
     this.modelo = modelo;
   }
 
+  /** Convierte el historial al formato de Chat Completions. */
   private aMensajes(mensajes: Mensaje[]): unknown[] {
     return aMensajesOpenAI(mensajes, this.promptSistema);
   }
 
+  /**
+   * Envía el historial y las herramientas, y normaliza la respuesta del proveedor.
+   * @param mensajes Historial de la conversación.
+   * @param herramientas Definiciones disponibles para tool calling.
+   * @returns Texto y llamadas normalizadas; las llamadas conservan su id de proveedor cuando existe.
+   * @throws Error si el endpoint devuelve una respuesta no exitosa o falla la petición.
+   */
   async responder(mensajes: Mensaje[], herramientas: DefinicionHerramienta[]): Promise<RespuestaLLM> {
     const cuerpo = {
       model: this.modelo,

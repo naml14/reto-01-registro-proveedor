@@ -7,14 +7,30 @@
 import { appendFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 
+/** Registro JSONL de una ejecución de herramienta. */
 export interface EntradaLog {
+  /** Marca temporal ISO de la ejecución. */
   ts: string;
+  /** Identificador del caso o null para operaciones globales. */
   caso: string | null;
+  /** Nombre interno de la herramienta. */
   herramienta: string;
+  /** Resultado booleano de la ejecución. */
   ok: boolean;
+  /** Resumen breve, sin el contenido completo del resultado. */
   resumen: string;
 }
 
+/**
+ * Añade una entrada a los logs global y, si hay caso, al log específico.
+ * Los errores de logging se ignoran deliberadamente para no interrumpir la herramienta.
+ *
+ * @param raiz Raíz del proyecto.
+ * @param caso Identificador del caso; al omitirse solo se escribe el log global.
+ * @param herramienta Nombre de la herramienta ejecutada.
+ * @param ok Indica si la ejecución terminó correctamente.
+ * @param resumen Texto breve del resultado o del error.
+ */
 export async function registrarLog(
   raiz: string,
   caso: string | undefined,

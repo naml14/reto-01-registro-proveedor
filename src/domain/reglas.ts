@@ -37,6 +37,12 @@ export const ALIAS_SOPORTES: Record<string, string> = {
   registro_tributario: "rut",
 };
 
+/**
+ * Resuelve el tipo pedido aplicando el alias del dominio, si existe.
+ *
+ * @param exigido Tipo de soporte indicado en la plantilla.
+ * @returns Tipo normalizado y bandera que indica si se aplicó un alias.
+ */
 export function resolverTipoSoporte(exigido: string): { tipo: string; alias: boolean } {
   const base = exigido.toLowerCase().trim();
   const alias = ALIAS_SOPORTES[base];
@@ -47,6 +53,13 @@ export function resolverTipoSoporte(exigido: string): { tipo: string; alias: boo
  * Mapea las etiquetas pedidas contra el repositorio maestro usando el glosario.
  * Cada etiqueta termina en exactamente un estado: lleno | faltante | requiere_confirmacion.
  * El agente nunca inventa: sin fuente no hay valor.
+ *
+ * @param params Datos y catálogos necesarios para resolver las etiquetas.
+ * @param params.etiquetas Etiquetas que se van a cruzar.
+ * @param params.maestro Datos del repositorio maestro.
+ * @param params.glosario Equivalencias entre etiquetas y rutas del maestro.
+ * @param params.pais Código de país usado para interpretar la etiqueta tributaria.
+ * @returns Campos separados en llenos, faltantes y pendientes de confirmación.
  */
 export function mapearCampos(params: {
   etiquetas: string[];
@@ -141,7 +154,16 @@ export function mapearCampos(params: {
   return { llenos, faltantes, requiere_confirmacion: requiereConfirmacion };
 }
 
-/** Evalua los soportes exigidos contra el indice de vigencias del repositorio. */
+/**
+ * Evalúa los soportes exigidos contra el índice y la fecha de vigencia.
+ * Los aliases se resuelven antes de buscar; un soporte ausente queda marcado como bloqueo potencial.
+ *
+ * @param params Requisitos, índice documental y fecha de referencia.
+ * @param params.exigidos Tipos solicitados por el caso.
+ * @param params.indice Soportes disponibles en el repositorio.
+ * @param params.fechaReferencia Fecha de la solicitud o fecha explícita de ejecución.
+ * @returns Un resultado por cada tipo exigido, en el mismo orden.
+ */
 export function evaluarSoportes(params: {
   exigidos: string[];
   indice: SoporteMaestro[];
@@ -178,7 +200,12 @@ export function evaluarSoportes(params: {
   });
 }
 
-/** RN3: un soporte ausente o vencido bloquea `listo_para_firma`. Un campo faltante no. */
+/**
+ * Aplica RN3: un soporte ausente o vencido bloquea la firma; los campos faltantes no se evalúan aquí.
+ *
+ * @param soportes Resultados de evaluación de los soportes exigidos.
+ * @returns Indicador de disponibilidad para firma y motivos de bloqueo.
+ */
 export function evaluarListoParaFirma(soportes: SoporteEvaluado[]): {
   listo_para_firma: boolean;
   bloqueos: string[];
@@ -196,7 +223,10 @@ export function evaluarListoParaFirma(soportes: SoporteEvaluado[]): {
 
 /**
  * El agente termina el turno con una pregunta cuando necesita una accion externa.
- * Heuristica de deteccion para resaltar el estado en el front (CA3).
+ * Heurística de detección para resaltar el estado en el front (CA3); no sustituye el consentimiento humano.
+ *
+ * @param texto Respuesta que se inspecciona.
+ * @returns `true` si menciona una acción reconocida y contiene signo de pregunta.
  */
 export function pideConfirmacion(texto: string): boolean {
   const normalizado = texto.toLowerCase();
@@ -205,7 +235,13 @@ export function pideConfirmacion(texto: string): boolean {
   return mencionaAccion && esPregunta;
 }
 
-/** Resumen legible de un resultado de herramienta para el chat. */
+/**
+ * Compacta el resultado de una herramienta para mostrarlo en el historial del chat.
+ *
+ * @param texto Resultado original.
+ * @param largoMaximo Longitud máxima, incluido el carácter de elipsis cuando se trunca.
+ * @returns Texto con espacios colapsados y, si hace falta, truncado.
+ */
 export function resumirResultado(texto: string, largoMaximo = 220): string {
   const limpio = texto.replace(/\s+/g, " ").trim();
   if (limpio.length <= largoMaximo) return limpio;

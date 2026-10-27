@@ -23,10 +23,19 @@
 
 import { AdaptadorAnthropic } from "./anthropic.ts";
 
+/** URL base del protocolo Messages compatible con Anthropic de MiniMax. */
 export const BASE_URL_ANTHROPIC_MINIMAX = "https://api.minimax.io/anthropic";
+/** URL base del protocolo Chat Completions compatible con OpenAI de MiniMax. */
 export const BASE_URL_OPENAI_MINIMAX = "https://api.minimax.io/v1";
 
+/** Adaptador MiniMax basado en Anthropic Messages con autenticación Bearer. */
 export class AdaptadorMiniMax extends AdaptadorAnthropic {
+  /**
+   * @param clave Subscription Key de MiniMax.
+   * @param modelo Identificador del modelo.
+   * @param promptSistema Instrucciones del agente.
+   * @param urlBase URL base del endpoint compatible.
+   */
   constructor(
     clave: string,
     modelo: string,

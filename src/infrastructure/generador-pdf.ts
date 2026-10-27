@@ -9,8 +9,15 @@ import PDFDocument from "pdfkit";
 
 import type { CampoPdf } from "../application/ports.ts";
 
+/** Tipo de campo compartido por el puerto y el generador PDF. */
 export type { CampoPdf };
 
+/**
+ * Genera un PDF A4 con los campos en el orden recibido y metadatos deterministas.
+ * @param destino Ruta absoluta de salida.
+ * @param campos Etiquetas y valores que se imprimen; un valor nulo se representa con un guion.
+ * @throws Error si PDFKit o la escritura del archivo falla.
+ */
 export async function generarPdf(destino: string, campos: CampoPdf[]): Promise<void> {
   // Fechas fijas en la metadata: el PDF debe ser identico entre ejecuciones.
   const documento = new PDFDocument({

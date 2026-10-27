@@ -21,12 +21,20 @@ await repositorio.limpiarOut();
 
 const herramientas = new Map(registroHerramientas().map((herramienta) => [herramienta.nombre, herramienta]));
 
+/** Envoltorio JSON devuelto por la ejecución directa de una herramienta. */
 interface ResultadoHerramienta {
   ok: boolean;
   data?: Record<string, unknown>;
   error?: string;
 }
 
+/**
+ * Ejecuta una herramienta registrada sin pasar por un modelo de lenguaje.
+ * @param nombre Nombre visible de la herramienta registrada.
+ * @param args Argumentos que se entregan a su validador y ejecutor.
+ * @returns Resultado JSON parseado de la herramienta.
+ * @throws Error si la herramienta no está registrada o devuelve JSON inválido.
+ */
 async function llamar(nombre: string, args: Record<string, unknown>): Promise<ResultadoHerramienta> {
   const herramienta = herramientas.get(nombre);
   if (herramienta === undefined) {
@@ -36,10 +44,12 @@ async function llamar(nombre: string, args: Record<string, unknown>): Promise<Re
   return JSON.parse(salida) as ResultadoHerramienta;
 }
 
+/** Convierte un arreglo desconocido en una lista de cadenas para el reporte de consola. */
 function lista(valor: unknown): string[] {
   return Array.isArray(valor) ? valor.map((item) => String(item)) : [];
 }
 
+/** Imprime un encabezado de sección y su separador en la consola. */
 function seccion(titulo: string): void {
   console.log("");
   console.log(titulo);

@@ -17,10 +17,19 @@ import { AdaptadorGuiado } from "./guiado.ts";
 import { AdaptadorMiniMax, BASE_URL_ANTHROPIC_MINIMAX, BASE_URL_OPENAI_MINIMAX } from "./minimax.ts";
 import { AdaptadorOpenAI } from "./openai.ts";
 
+/** Lee la primera clave de MiniMax compatible con los nombres de entorno admitidos. */
 function claveMinimax(): string | undefined {
   return process.env.MINIMAX_API_KEY?.trim() || process.env.MINIMAX_SUBSCRIPTION_KEY?.trim();
 }
 
+/**
+ * Selecciona el adaptador según `LLM_PROVIDER` y las credenciales disponibles.
+ * En `auto` prioriza MiniMax, luego Anthropic y OpenAI; sin clave usa modo guiado.
+ *
+ * @param promptSistema Instrucciones del agente que se envían a proveedores LLM.
+ * @param raiz Directorio del proyecto, usado por el adaptador guiado.
+ * @returns Adaptador listo para responder al ciclo del agente.
+ */
 export function crearAdaptador(promptSistema: string, raiz: string): AdaptadorLLM {
   const proveedor = (process.env.LLM_PROVIDER ?? "auto").toLowerCase();
   const claveAnthropic = process.env.ANTHROPIC_API_KEY?.trim();
@@ -77,6 +86,7 @@ export function crearAdaptador(promptSistema: string, raiz: string): AdaptadorLL
  * que usa tool calling con el mismo contrato de Anthropic; el OpenAI-compatible
  * se activa con MINIMAX_PROTOCOLO=openai.
  */
+/** Construye el adaptador MiniMax con el protocolo elegido por `MINIMAX_PROTOCOLO`. */
 function crearMiniMax(clave: string, promptSistema: string): AdaptadorLLM {
   const modelo = process.env.LLM_MODEL_MINIMAX ?? "MiniMax-M3.1-Flash";
   const protocolo = (process.env.MINIMAX_PROTOCOLO ?? "anthropic").toLowerCase();
